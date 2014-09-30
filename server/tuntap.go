@@ -22,6 +22,7 @@ func NewTun(name string) *TunTap {
 // see http://golang.org/pkg/io/#Reader
 func (t *TunTap) Read(p []byte) (n int, err error) {
 	// TODO
+	return 0, nil
 }
 
 // Write writes len(p) bytes from p to the underlying data stream.
@@ -32,6 +33,7 @@ func (t *TunTap) Read(p []byte) (n int, err error) {
 // see http://golang.org/pkg/io/#Writer
 func (t *TunTap) Write(p []byte) (n int, err error) {
 	// TODO
+	return 0, nil
 }
 
 // Returns the device name
@@ -41,4 +43,5 @@ func (t *TunTap) Ifname() string {
 
 func (t *TunTap) Close() error {
 	C.tuntap_destroy(t.device)
+	return nil
 }
