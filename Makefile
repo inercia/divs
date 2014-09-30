@@ -2,7 +2,8 @@
 LIBTUNTAP_URL = https://github.com/LaKabane/libtuntap.git
 
 # full go-stype URLs for the commands we want to build
-CMDS=github.com/inercia/divs/cmd/divs
+CMDS_BASE=github.com/inercia/divs/cmd
+CMDS=divs
 
 #################################################################
 # main
@@ -11,7 +12,7 @@ all: tuntap/Makefile
 	@echo "Building libtuntap"
 	@make -C tuntap all
 	@echo "Building DiVS"
-	@for C in $(CMDS) ; do echo "... building $$C " ; go build $$C ; done
+	@for C in $(CMDS) ; do echo "... building $$C " ; go build -v cmd/$$C/main.go ; done
 
 tuntap/Makefile:
 	cd tuntap && cmake -Wno-dev .
@@ -21,6 +22,7 @@ clean: tuntap/Makefile
 	@make -C tuntap clean
 	@echo "Cleaning DiVS"
 	@go clean
+	@rm -f $(CMDS)
 
 #################################################################
 # dependencies

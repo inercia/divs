@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/goraft/raft"
-	"github.com/inercia/divs/command"
+	"github.com/inercia/divs/model/command"
 	"github.com/inercia/divs/server"
 	"github.com/voxelbrain/goptions"
 	"log"
