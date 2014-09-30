@@ -1,8 +1,6 @@
 package main
 
 import (
-	"flag"
-	"fmt"
 	"github.com/goraft/raft"
 	"github.com/inercia/divs/command"
 	"github.com/inercia/divs/server"
@@ -12,13 +10,6 @@ import (
 	"os"
 	"time"
 )
-
-var verbose bool
-var trace bool
-var debug bool
-var host string
-var port int
-var join string
 
 func main() {
 	log.SetFlags(0)
@@ -37,11 +28,12 @@ func main() {
 		Debug   bool          `goptions:"-d, --debug"`
 	}{ // Default values goes here
 		Timeout: 10 * time.Second,
+		Port:    4004,
 	}
+
 	goptions.ParseAndFail(&options)
 
-	flag.Parse()
-	if option.Verbose {
+	if options.Verbose {
 		log.Print("Verbose logging enabled.")
 	}
 	if options.Trace {
@@ -64,5 +56,5 @@ func main() {
 
 	log.SetFlags(log.LstdFlags)
 	s := server.New(options.Path, options.Host, options.Port)
-	log.Fatal(s.ListenAndServe(join))
+	log.Fatal(s.ListenAndServe(options.Join))
 }

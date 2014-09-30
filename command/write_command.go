@@ -1,7 +1,7 @@
 package command
 
 import (
-	"github.com/inercia/divs"
+	"github.com/goraft/raft"
 	"github.com/inercia/divs/db"
 )
 
