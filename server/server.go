@@ -4,13 +4,16 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/dropbox/godropbox/net2"
 	"github.com/goraft/raft"
 	"github.com/gorilla/mux"
 	"github.com/inercia/divs/model/command"
 	"github.com/inercia/divs/model/db"
+	"github.com/inercia/water/tuntap"
 	"io/ioutil"
 	"log"
 	"math/rand"
+	"net"
 	"net/http"
 	"path/filepath"
 	"sync"
@@ -20,12 +23,19 @@ import (
 // The raftd server is a combination of the Raft server and an HTTP
 // server which acts as the transport.
 type Server struct {
-	name       string
-	host       string
-	port       int
-	path       string
-	router     *mux.Router
+	name string
+	host string
+	port int
+	path string
+
+	bindAddr     string
+	externalAddr string
+
+	tun *tuntap.TunTap
+
 	raftServer raft.Server
+
+	router     *mux.Router
 	httpServer *http.Server
 	db         *db.DB
 	mutex      sync.RWMutex
@@ -33,12 +43,21 @@ type Server struct {
 
 // Creates a new server.
 func New(path string, host string, port int) *Server {
+	tun, err := tuntap.NewTAP("")
+	if err != nil {
+		log.Fatal(fmt.Sprintf("ERROR: when initializing tun/tap device: %s\n", err))
+		return nil
+	}
+
 	s := &Server{
-		host:   host,
-		port:   port,
-		path:   path,
-		db:     db.New(),
-		router: mux.NewRouter(),
+		host:         host,
+		port:         port,
+		path:         path,
+		db:           db.New(),
+		router:       mux.NewRouter(),
+		bindAddr:     fmt.Sprintf("http://0.0.0.0:%d", port),
+		externalAddr: fmt.Sprintf("http://%s:%d", host, port),
+		tun:          tun,
 	}
 
 	// Read existing name or generate a new one.
@@ -54,18 +73,27 @@ func New(path string, host string, port int) *Server {
 	return s
 }
 
-// Returns the connection string.
-func (s *Server) connectionString() string {
-	return fmt.Sprintf("http://%s:%d", s.host, s.port)
-}
-
 // Starts the server.
 func (s *Server) ListenAndServe(leader string) error {
 	var err error
+	var ips []*net.IP
 
-	log.Printf("Initializing Raft Server: %s", s.path)
+	ips, err = net2.GetLocalIPs()
+	if err != nil {
+		log.Fatal(fmt.Sprintf("ERROR: Could not guess local IP addresses: %s\n", err))
+		return nil
+	}
+
+	log.Printf("External IPs detected:\n")
+	for i := range ips {
+		log.Printf("... IP: %s\n", ips[i])
+	}
+
+	// Start the tunnel device
+	log.Printf("Tunnel device: %s", s.tun.Name())
 
 	// Initialize and start Raft server.
+	log.Printf("Initializing Raft Server: %s", s.path)
 	transporter := raft.NewHTTPTransporter("/raft", 200*time.Millisecond)
 	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, nil, s.db, "")
 	if err != nil {
@@ -93,7 +121,7 @@ func (s *Server) ListenAndServe(leader string) error {
 
 		_, err := s.raftServer.Do(&raft.DefaultJoinCommand{
 			Name:             s.raftServer.Name(),
-			ConnectionString: s.connectionString(),
+			ConnectionString: s.externalAddr,
 		})
 		if err != nil {
 			log.Fatal(err)
@@ -115,7 +143,7 @@ func (s *Server) ListenAndServe(leader string) error {
 	s.router.HandleFunc("/db/{key}", s.writeHandler).Methods("POST")
 	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
 
-	log.Println("Listening at:", s.connectionString())
+	log.Println("Listening at:", s.bindAddr)
 
 	return s.httpServer.ListenAndServe()
 }
@@ -130,7 +158,7 @@ func (s *Server) HandleFunc(pattern string, handler func(http.ResponseWriter, *h
 func (s *Server) Join(leader string) error {
 	command := &raft.DefaultJoinCommand{
 		Name:             s.raftServer.Name(),
-		ConnectionString: s.connectionString(),
+		ConnectionString: s.externalAddr,
 	}
 
 	var b bytes.Buffer

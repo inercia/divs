@@ -17,7 +17,7 @@ func main() {
 	options := struct {
 		Host string `goptions:"-h, --host, description='Hostname'"`
 		Port int    `goptions:"-p, --port, description='Port'"`
-		Join string `goptions:"-j, --join, obligatory, description='host:port of leader to join'"`
+		Join string `goptions:"-j, --join, description='host:port of leader to join'"`
 		Path string `goptions:"-d, --data, obligatory, description='data path directory'"`
 
 		// other
@@ -29,6 +29,7 @@ func main() {
 	}{ // Default values goes here
 		Timeout: 10 * time.Second,
 		Port:    4004,
+		Join:    "",
 	}
 
 	goptions.ParseAndFail(&options)

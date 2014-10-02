@@ -9,9 +9,9 @@ It uses the [goraft](https://github.com/goraft/raft) library.
 
 ## Running
 
-First, install raftd:
+First, install DiVS with:
 
 ```sh
-$ go get github.com/inercia/divs
+$ git clone https://github.com/inercia/divs.git
 ```
 
