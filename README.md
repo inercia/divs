@@ -1,6 +1,8 @@
 DiVS
 =====
 
+[![Go Walker](http://gowalker.org/api/v1/badge)](https://gowalker.org/github.com/inercia/divs)
+
 ## Overview
 
 The DiVS server is a distributed virtual switch.

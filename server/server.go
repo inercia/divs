@@ -4,17 +4,14 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/dropbox/godropbox/net2"
 	"github.com/goraft/raft"
 	"github.com/gorilla/mux"
 	"github.com/inercia/divs/model/command"
 	"github.com/inercia/divs/model/db"
-	"github.com/inercia/water/tuntap"
 	"io/ioutil"
-	"log"
 	"math/rand"
-	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -23,17 +20,15 @@ import (
 // The raftd server is a combination of the Raft server and an HTTP
 // server which acts as the transport.
 type Server struct {
-	name string
-	host string
-	port int
-	path string
+	name   string
+	config *Config
 
 	bindAddr     string
 	externalAddr string
 
-	tun *tuntap.TunTap
-
-	raftServer raft.Server
+	peersManager *PeersManager
+	devManager   *DevManager
+	raftServer   raft.Server
 
 	router     *mux.Router
 	httpServer *http.Server
@@ -42,82 +37,113 @@ type Server struct {
 }
 
 // Creates a new server.
-func New(path string, host string, port int) *Server {
-	tun, err := tuntap.NewTAP("")
+func New(config *Config) (s *Server, err error) {
+	var devManager *DevManager
+	var peersManager *PeersManager
+
+	// Initialize the device manager
+	devManager, err = NewDevManager(config)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("ERROR: when initializing tun/tap device: %s\n", err))
-		return nil
+		log.Fatal(err)
 	}
 
-	s := &Server{
-		host:         host,
-		port:         port,
-		path:         path,
+	// Initialize the peers manager
+	peersManager, err = NewPeersManager(config, devManager)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	s = &Server{
+		config:       config,
+		devManager:   devManager,
+		peersManager: peersManager,
 		db:           db.New(),
 		router:       mux.NewRouter(),
-		bindAddr:     fmt.Sprintf("http://0.0.0.0:%d", port),
-		externalAddr: fmt.Sprintf("http://%s:%d", host, port),
-		tun:          tun,
+		bindAddr:     fmt.Sprintf("http://0.0.0.0:%d", config.Global.Port),
+		externalAddr: fmt.Sprintf("http://%s:%d", config.Global.Host, config.Global.Port),
 	}
 
+	s.setDataDirectory()
+
+	// Setup commands.
+	raft.RegisterCommand(&command.WriteCommand{})
+
+	return s, nil
+}
+
+func (s *Server) setDataDirectory() {
+	log.Info("Initailizaing data directory")
+	if len(s.config.Raft.DataPath) == 0 {
+		log.Fatalf("No data directory provided")
+	}
+
+	// Set the data directory.
+	if err := os.MkdirAll(s.config.Raft.DataPath, 0744); err != nil {
+		log.Critical("Unable to create path: %v", err)
+	}
+
+	log.Debug("Data directory: %s\n", s.config.Raft.DataPath)
+
 	// Read existing name or generate a new one.
-	if b, err := ioutil.ReadFile(filepath.Join(path, "name")); err == nil {
+	if b, err := ioutil.ReadFile(filepath.Join(s.config.Raft.DataPath, "name")); err == nil {
 		s.name = string(b)
 	} else {
 		s.name = fmt.Sprintf("%07x", rand.Int())[0:7]
-		if err = ioutil.WriteFile(filepath.Join(path, "name"), []byte(s.name), 0644); err != nil {
+		if err = ioutil.WriteFile(filepath.Join(s.config.Raft.DataPath, "name"),
+			[]byte(s.name), 0644); err != nil {
 			panic(err)
 		}
 	}
-
-	return s
 }
 
 // Starts the server.
-func (s *Server) ListenAndServe(leader string) error {
+func (s *Server) ListenAndServe() error {
 	var err error
-	var ips []*net.IP
+	//var ips []*net.IP
 
-	ips, err = net2.GetLocalIPs()
-	if err != nil {
-		log.Fatal(fmt.Sprintf("ERROR: Could not guess local IP addresses: %s\n", err))
-		return nil
+	// start the peers manager
+	if err = s.peersManager.Start(); err != nil {
+		log.Fatalf("Error when initialing peers manager: %s", err)
+	}
+	log.Debug("Is leader? %t", s.config.Raft.IsLeader)
+	if s.config.Raft.IsLeader {
+		log.Debug("... yes: we will try to connect to the leader")
+		s.peersManager.WaitForPeers()
+	} else {
+		log.Debug("... no: we will not try to connect to anyone")
 	}
 
-	log.Printf("External IPs detected:\n")
-	for i := range ips {
-		log.Printf("... IP: %s\n", ips[i])
+	// and the devices manager
+	if err = s.devManager.Start(); err != nil {
+		log.Fatalf("Error when initialing tun/tap device manager: %s", err)
 	}
-
-	// Start the tunnel device
-	log.Printf("Tunnel device: %s", s.tun.Name())
 
 	// Initialize and start Raft server.
-	log.Printf("Initializing Raft Server: %s", s.path)
+	log.Info("Initializing Raft Server: %s", s.config.Raft.DataPath)
 	transporter := raft.NewHTTPTransporter("/raft", 200*time.Millisecond)
-	s.raftServer, err = raft.NewServer(s.name, s.path, transporter, nil, s.db, "")
+	s.raftServer, err = raft.NewServer(s.name, s.config.Raft.DataPath, transporter, nil, s.db, "")
 	if err != nil {
 		log.Fatal(err)
 	}
 	transporter.Install(s.raftServer, s)
 	s.raftServer.Start()
 
-	if leader != "" {
+	if s.config.Raft.IsLeader {
 		// Join to leader if specified.
 
-		log.Println("Attempting to join leader:", leader)
+		log.Info("Attempting to join leader:", s.config.Raft.Leader)
 
 		if !s.raftServer.IsLogEmpty() {
-			log.Fatal("Cannot join with an existing log")
+			log.Fatalf("Cannot join with an existing log")
 		}
-		if err := s.Join(leader); err != nil {
+		if err := s.Join(s.config.Raft.Leader); err != nil {
 			log.Fatal(err)
 		}
 
 	} else if s.raftServer.IsLogEmpty() {
 		// Initialize the server by joining itself.
 
-		log.Println("Initializing new cluster")
+		log.Info("Initializing new cluster")
 
 		_, err := s.raftServer.Do(&raft.DefaultJoinCommand{
 			Name:             s.raftServer.Name(),
@@ -126,16 +152,15 @@ func (s *Server) ListenAndServe(leader string) error {
 		if err != nil {
 			log.Fatal(err)
 		}
-
 	} else {
-		log.Println("Recovered from log")
+		log.Info("Recovered from log")
 	}
 
-	log.Println("Initializing HTTP server")
+	log.Info("Initializing HTTP server")
 
 	// Initialize and start HTTP server.
 	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.port),
+		Addr:    fmt.Sprintf(":%d", s.config.Global.Port),
 		Handler: s.router,
 	}
 
@@ -143,7 +168,7 @@ func (s *Server) ListenAndServe(leader string) error {
 	s.router.HandleFunc("/db/{key}", s.writeHandler).Methods("POST")
 	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
 
-	log.Println("Listening at:", s.bindAddr)
+	log.Info("Listening at:", s.bindAddr)
 
 	return s.httpServer.ListenAndServe()
 }
@@ -153,6 +178,8 @@ func (s *Server) ListenAndServe(leader string) error {
 func (s *Server) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
 	s.router.HandleFunc(pattern, handler)
 }
+
+/////////////////////////////////////////////////////////////////////////////////
 
 // Joins to the leader of an existing cluster.
 func (s *Server) Join(leader string) error {

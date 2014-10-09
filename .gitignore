@@ -1,8 +1,4 @@
 divs
 
-tuntap/CMakeCache.txt
-tuntap/CMakeFiles/
-tuntap/Makefile
-tuntap/cmake_install.cmake
-tuntap/lib/
-
+server/protobuf/*.pb.go
+server/protobuf/*pb_test.go
