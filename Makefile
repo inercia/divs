@@ -30,7 +30,9 @@ clean:
 
 ${GOPATH}/bin/protoc-gen-gogo:
 	@echo "Installing $$GOPATH/bin/protoc-gen-gogo"
-	go get code.google.com/p/gogoprotobuf/{proto,protoc-gen-gogo,gogoproto}
+	go get code.google.com/p/gogoprotobuf/proto
+	go get code.google.com/p/gogoprotobuf/protoc-gen-gogo
+	go get code.google.com/p/gogoprotobuf/gogoproto
 
 %.pb.go %pb_test.go : %.proto  ${GOPATH}/bin/protoc-gen-gogo
 	@echo "Generating code for Protocol Buffers definition: $<"
