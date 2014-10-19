@@ -1,4 +1,4 @@
-package server
+package divs
 
 import (
 	"code.google.com/p/go-uuid/uuid"

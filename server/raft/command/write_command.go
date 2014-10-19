@@ -2,7 +2,7 @@ package command
 
 import (
 	"github.com/goraft/raft"
-	"github.com/inercia/divs/model/db"
+	"github.com/inercia/divs/server/raft/db"
 )
 
 // This command writes a value to a key.

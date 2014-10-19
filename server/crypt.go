@@ -1,4 +1,4 @@
-package server
+package divs
 
 func Encrypt(in []byte) (out []byte) {
 	// TODO

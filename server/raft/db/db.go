@@ -4,6 +4,8 @@ import (
 	"sync"
 )
 
+// see https://github.com/hashicorp/raft-mdb for a possible replacement
+
 // The key-value database.
 type DB struct {
 	data  map[string]string

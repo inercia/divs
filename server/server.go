@@ -1,45 +1,34 @@
-package server
+package divs
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"github.com/goraft/raft"
-	"github.com/gorilla/mux"
-	"github.com/inercia/divs/model/command"
-	"github.com/inercia/divs/model/db"
-	"io/ioutil"
-	"math/rand"
-	"net/http"
-	"os"
-	"path/filepath"
+	"github.com/hashicorp/memberlist"
 	"sync"
-	"time"
 )
 
 // The raftd server is a combination of the Raft server and an HTTP
 // server which acts as the transport.
 type Server struct {
-	name   string
 	config *Config
 
-	bindAddr     string
-	externalAddr string
-
-	peersManager *PeersManager
+	peersManager *NodesManager
 	devManager   *DevManager
-	raftServer   raft.Server
+	memberlist   *memberlist.Memberlist
+	raftServer   *RaftServer
 
-	router     *mux.Router
-	httpServer *http.Server
-	db         *db.DB
-	mutex      sync.RWMutex
+	mutex sync.RWMutex
 }
 
 // Creates a new server.
 func New(config *Config) (s *Server, err error) {
-	var devManager *DevManager
-	var peersManager *PeersManager
+	var (
+		devManager   *DevManager
+		peersManager *NodesManager
+		mlist        *memberlist.Memberlist
+	)
+
+	//bindAddr := fmt.Sprintf("http://0.0.0.0:%d", config.Global.Port)
+	externalAddr := fmt.Sprintf("http://%s:%d", config.Global.Host, config.Global.Port)
 
 	// Initialize the device manager
 	devManager, err = NewDevManager(config)
@@ -48,7 +37,24 @@ func New(config *Config) (s *Server, err error) {
 	}
 
 	// Initialize the peers manager
-	peersManager, err = NewPeersManager(config, devManager)
+	peersManager, err = NewNodesManager(config, devManager)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	/* Create the initial memberlist from a safe configuration.
+	   Please reference the godoc for other default config types.
+	   http://godoc.org/github.com/hashicorp/memberlist#Config
+	*/
+	log.Info("Creating memberlist config")
+	mlist, err = memberlist.Create(memberlist.DefaultLocalConfig())
+	if err != nil {
+		log.Fatal("Failed to create memberlist: " + err.Error())
+	}
+
+	// Initialize and start Raft server.
+	log.Info("Initializing Raft Server: %s", s.config.Raft.DataPath)
+	s.raftServer, err = NewRaftServer(config, externalAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,49 +63,15 @@ func New(config *Config) (s *Server, err error) {
 		config:       config,
 		devManager:   devManager,
 		peersManager: peersManager,
-		db:           db.New(),
-		router:       mux.NewRouter(),
-		bindAddr:     fmt.Sprintf("http://0.0.0.0:%d", config.Global.Port),
-		externalAddr: fmt.Sprintf("http://%s:%d", config.Global.Host, config.Global.Port),
+		memberlist:   mlist,
 	}
-
-	s.setDataDirectory()
-
-	// Setup commands.
-	raft.RegisterCommand(&command.WriteCommand{})
 
 	return s, nil
-}
-
-func (s *Server) setDataDirectory() {
-	log.Info("Initailizaing data directory")
-	if len(s.config.Raft.DataPath) == 0 {
-		log.Fatalf("No data directory provided")
-	}
-
-	// Set the data directory.
-	if err := os.MkdirAll(s.config.Raft.DataPath, 0744); err != nil {
-		log.Critical("Unable to create path: %v", err)
-	}
-
-	log.Debug("Data directory: %s\n", s.config.Raft.DataPath)
-
-	// Read existing name or generate a new one.
-	if b, err := ioutil.ReadFile(filepath.Join(s.config.Raft.DataPath, "name")); err == nil {
-		s.name = string(b)
-	} else {
-		s.name = fmt.Sprintf("%07x", rand.Int())[0:7]
-		if err = ioutil.WriteFile(filepath.Join(s.config.Raft.DataPath, "name"),
-			[]byte(s.name), 0644); err != nil {
-			panic(err)
-		}
-	}
 }
 
 // Starts the server.
 func (s *Server) ListenAndServe() error {
 	var err error
-	//var ips []*net.IP
 
 	// start the peers manager
 	if err = s.peersManager.Start(); err != nil {
@@ -108,7 +80,7 @@ func (s *Server) ListenAndServe() error {
 	log.Debug("Is leader? %t", s.config.Raft.IsLeader)
 	if s.config.Raft.IsLeader {
 		log.Debug("... yes: we will try to connect to the leader")
-		s.peersManager.WaitForPeers()
+		s.peersManager.WaitForNodes()
 	} else {
 		log.Debug("... no: we will not try to connect to anyone")
 	}
@@ -118,120 +90,29 @@ func (s *Server) ListenAndServe() error {
 		log.Fatalf("Error when initialing tun/tap device manager: %s", err)
 	}
 
-	// Initialize and start Raft server.
-	log.Info("Initializing Raft Server: %s", s.config.Raft.DataPath)
-	transporter := raft.NewHTTPTransporter("/raft", 200*time.Millisecond)
-	s.raftServer, err = raft.NewServer(s.name, s.config.Raft.DataPath, transporter, nil, s.db, "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	transporter.Install(s.raftServer, s)
-	s.raftServer.Start()
-
-	if s.config.Raft.IsLeader {
+	if !s.config.Raft.IsLeader {
 		// Join to leader if specified.
-
 		log.Info("Attempting to join leader:", s.config.Raft.Leader)
 
-		if !s.raftServer.IsLogEmpty() {
-			log.Fatalf("Cannot join with an existing log")
-		}
-		if err := s.Join(s.config.Raft.Leader); err != nil {
-			log.Fatal(err)
-		}
-
-	} else if s.raftServer.IsLogEmpty() {
-		// Initialize the server by joining itself.
-
-		log.Info("Initializing new cluster")
-
-		_, err := s.raftServer.Do(&raft.DefaultJoinCommand{
-			Name:             s.raftServer.Name(),
-			ConnectionString: s.externalAddr,
-		})
+		// Join an existing cluster by specifying at least one known member.
+		n, err := s.memberlist.Join([]string{s.config.Raft.Leader})
 		if err != nil {
-			log.Fatal(err)
+			log.Fatalf("Failed to join cluster: " + err.Error())
+		} else {
+			log.Info("Joined %d peers", n)
 		}
-	} else {
-		log.Info("Recovered from log")
+
+		if err := s.raftServer.JoinLeader(s.config.Raft.Leader); err != nil {
+			log.Fatalf("Could not join %s: %v", s.config.Raft.Leader, err)
+		}
+	} else if err := s.raftServer.InitCluster(); err != nil {
+		log.Fatalf("Could not initialize cluster: %v", err)
 	}
 
-	log.Info("Initializing HTTP server")
-
-	// Initialize and start HTTP server.
-	s.httpServer = &http.Server{
-		Addr:    fmt.Sprintf(":%d", s.config.Global.Port),
-		Handler: s.router,
+	log.Debug("Initializing Raft transport")
+	if err := s.raftServer.StartTransport(); err != nil {
+		log.Fatalf("Could not start transport: %v", err)
 	}
-
-	s.router.HandleFunc("/db/{key}", s.readHandler).Methods("GET")
-	s.router.HandleFunc("/db/{key}", s.writeHandler).Methods("POST")
-	s.router.HandleFunc("/join", s.joinHandler).Methods("POST")
-
-	log.Info("Listening at:", s.bindAddr)
-
-	return s.httpServer.ListenAndServe()
-}
-
-// This is a hack around Gorilla mux not providing the correct net/http
-// HandleFunc() interface.
-func (s *Server) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
-	s.router.HandleFunc(pattern, handler)
-}
-
-/////////////////////////////////////////////////////////////////////////////////
-
-// Joins to the leader of an existing cluster.
-func (s *Server) Join(leader string) error {
-	command := &raft.DefaultJoinCommand{
-		Name:             s.raftServer.Name(),
-		ConnectionString: s.externalAddr,
-	}
-
-	var b bytes.Buffer
-	json.NewEncoder(&b).Encode(command)
-	resp, err := http.Post(fmt.Sprintf("http://%s/join", leader), "application/json", &b)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close()
 
 	return nil
-}
-
-func (s *Server) joinHandler(w http.ResponseWriter, req *http.Request) {
-	command := &raft.DefaultJoinCommand{}
-
-	if err := json.NewDecoder(req.Body).Decode(&command); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if _, err := s.raftServer.Do(command); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-}
-
-func (s *Server) readHandler(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	value := s.db.Get(vars["key"])
-	w.Write([]byte(value))
-}
-
-func (s *Server) writeHandler(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-
-	// Read the value from the POST body.
-	b, err := ioutil.ReadAll(req.Body)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	value := string(b)
-
-	// Execute the command against the Raft server.
-	_, err = s.raftServer.Do(command.NewWriteCommand(vars["key"], value))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-	}
 }

@@ -1,4 +1,4 @@
-package server
+package divs
 
 // The config
 type Config struct {

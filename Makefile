@@ -26,7 +26,9 @@ test: divs
 clean:
 	@echo "Cleaning DiVS"
 	@go clean
-	rm -f divs $(PB_GO) $(PB_GO_TEST) *~ */*~
+	rm -f divs $(PB_GO) $(PB_GO_TEST)
+	rm -f divs*.pkg divs*.deb
+	rm -f *~ */*~
 
 ${GOPATH}/bin/protoc-gen-gogo:
 	@echo "Installing $$GOPATH/bin/protoc-gen-gogo"
@@ -57,6 +59,13 @@ distclean-deps:
 #################################################################
 # packaging
 
+# in order to cross compile you must do this for
+# each OS/architecture you want:
+#
+# $ cd $GOROOT/src
+# $ GOOS=linux GOARCH=amd64 CGO_ENABLED=0 ./make.bash --no-clean
+#
+
 PACKAGING_COMMON=\
 	-s dir \
 	-v $(VERSION) \
@@ -69,11 +78,16 @@ PACKAGING_COMMON=\
 # $ gem install fpm
 package: package-osx package-deb
 
-package-osx: divs
-	rm -f divs*.pkg && fpm -t osxpkg $(PACKAGING_COMMON)
+package-osx:
+	make clean
+	GOOS=darwin GOARCH=amd64 make all
+	fpm -t osxpkg $(PACKAGING_COMMON)
 
-package-deb: divs
-	rm -f divs*.deb && fpm -t deb $(PACKAGING_COMMON)
+# on Mac: brew install gnu-tar
+package-deb:
+	make clean
+	GOOS=linux GOARCH=amd64 make all
+	fpm -t deb $(PACKAGING_COMMON)
 
 #################################################################
 

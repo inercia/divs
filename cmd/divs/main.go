@@ -3,12 +3,13 @@ package main
 import (
 	"github.com/facebookgo/pidfile"
 	"github.com/goraft/raft"
-	"github.com/inercia/divs/server"
 	"github.com/inercia/goptions"
 	"github.com/op/go-logging"
 	"math/rand"
 	"os"
 	"time"
+
+	"github.com/inercia/divs/server"
 )
 
 func main() {

@@ -1,10 +1,10 @@
-package server
+package divs
 
 import (
-	"fmt"
 	"github.com/ccding/go-stun/stun"
 	"github.com/huin/goupnp/dcps/internetgateway1"
 
+	"fmt"
 	"net"
 	"strconv"
 )
@@ -20,11 +20,11 @@ type External struct {
 }
 
 // a new external address, with default values
-func NewExternal(defaultHost string, defaultPort int) *External {
+func NewExternal(defaultHost string, defaultPort int) (*External, error) {
 	return &External{
 		host: defaultHost,
 		port: defaultPort,
-	}
+	}, nil
 }
 
 func (e *External) Obtain() (address string, err error) {
@@ -147,26 +147,6 @@ func (e *External) getExternalAddrWithUpnp() (ip string, port int, err error) {
 			ip, err := c.GetExternalIPAddress()
 			log.Info("GetExternalIPAddress: ", ip, err)
 		}
-
-		//if scpd == nil || scpd.GetAction("GetStatusInfo") != nil {
-		//	status, lastErr, uptime, err := c.GetStatusInfo()
-		//	log.Debug("GetStatusInfo: ", status, lastErr, uptime, err)
-		//}
-
-		//if scpd == nil || scpd.GetAction("GetIdleDisconnectTime") != nil {
-		//	idleTime, err := c.GetIdleDisconnectTime()
-		//	log.Debug("GetIdleDisconnectTime: ", idleTime, err)
-		//}
-
-		//if scpd == nil || scpd.GetAction("AddPortMapping") != nil {
-		//	err := c.AddPortMapping("", 5000, "TCP", 5001, "192.168.1.2", true, "Test port mapping", 0)
-		//	log.Debug("AddPortMapping: ", err)
-		//}
-
-		//if scpd == nil || scpd.GetAction("DeletePortMapping") != nil {
-		//	err := c.DeletePortMapping("", 5000, "TCP")
-		//	log.Debug("DeletePortMapping: ", err)
-		//}
 	}
 
 	return ip, port, nil
