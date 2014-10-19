@@ -25,10 +25,6 @@ const DEFAULT_POOL_MAX = 10
 type Node struct {
 	memberlist.Node
 
-	Id   string // the id is just the IP:port
-	Host net.IP
-	Port int
-
 	recvChan chan []byte
 	sendChan chan []byte
 }
@@ -48,9 +44,6 @@ func NewNode(address string) (*Node, error) {
 	// TODO
 
 	p := &Node{
-		Id:       address,
-		Host:     net.ParseIP(host),
-		Port:     iPort,
 		sendChan: make(chan []byte),
 		recvChan: make(chan []byte),
 	}
