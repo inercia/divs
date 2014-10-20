@@ -7,6 +7,8 @@ DiVS
 
 The DiVS server is a distributed virtual switch.
 
+![Overview](https://raw.githubusercontent.com/inercia/divs/master/docs/images/overview.png)
+
 It uses the [goraft](https://github.com/goraft/raft) library.
 
 ## Running
