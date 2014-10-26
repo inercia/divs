@@ -2,51 +2,44 @@
 # current version
 VERSION=0.1.0
 
-# Protocol buffers args
-PB_PROTO   := $(wildcard server/protobuf/*.proto)
-PB_GO      := $(patsubst %.proto,%.pb.go,$(PB_PROTO))
-PB_GO_TEST := $(patsubst %.proto,%pb_test.go,$(PB_PROTO))
-
-PROTOC_ARGS = --proto_path=${GOPATH}/src \
-			  --proto_path=${GOPATH}/src/code.google.com/p/gogoprotobuf/protobuf \
-			  --proto_path=.
+# the go tool
+GO=${GOROOT}/bin/go
 
 #################################################################
 # main
 
-all: divs
+all: divsd.exe
 
-divs: $(PB_GO) FORCE
+divsd.exe: $(PB_GO) FORCE
 	@echo "Building DiVS"
-	go build github.com/inercia/divs/cmd/divs
+	$(GO) build -o divsd.exe github.com/inercia/divs/cmd/divsd
 
-test: divs
-	go test ./...
+test: divsd.exe
+	$(GO) test ./...
 
 clean:
 	@echo "Cleaning DiVS"
 	@go clean
-	rm -f divs $(PB_GO) $(PB_GO_TEST)
+	rm -rf bin build
+	rm -f divsd.exe $(PB_GO) $(PB_GO_TEST)
 	rm -f divs*.pkg divs*.deb
 	rm -f *~ */*~
 
-${GOPATH}/bin/protoc-gen-gogo:
-	@echo "Installing $$GOPATH/bin/protoc-gen-gogo"
-	go get code.google.com/p/gogoprotobuf/proto
-	go get code.google.com/p/gogoprotobuf/protoc-gen-gogo
-	go get code.google.com/p/gogoprotobuf/gogoproto
-
-%.pb.go %pb_test.go : %.proto  ${GOPATH}/bin/protoc-gen-gogo
-	@echo "Generating code for Protocol Buffers definition: $<"
-	PATH=${GOPATH}/bin:${PATH} protoc $(PROTOC_ARGS) --gogo_out=. $<
 
 #################################################################
 # deps
 
 get: deps
-deps:
+dependencies: deps
+deps: clean
 	@echo "Getting all dependencies..."
-	go get -d ./...
+	$(GO) get -d ./...
+
+dependencies-update: deps-up
+deps-update: deps-up
+deps-up: clean
+	@echo "Updating all dependencies..."
+	$(GO) get -d -u ./...
 
 distclean-deps:
 	for PKG in $$GOPATH/src/*/* ; do \
@@ -55,7 +48,7 @@ distclean-deps:
 		fi ; \
 	done
 	rm -rf $$GOPATH/pkg
-
+	
 #################################################################
 # packaging
 
@@ -71,8 +64,8 @@ PACKAGING_COMMON=\
 	-v $(VERSION) \
 	-n divs \
 	--config-files /usr/local/etc/divs/divs.conf \
-	divs=/usr/local/bin/divs \
-	conf/divs.conf=/usr/local/etc/divs/divs.conf
+	divsd.exe=/usr/local/bin/divsd \
+	conf/etc/divsd.conf=/usr/local/etc/divs/divsd.conf
 
 # install fpm with:
 # $ gem install fpm
