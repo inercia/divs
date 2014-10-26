@@ -5,8 +5,9 @@ import (
 	"sync"
 )
 
-// The raftd server is a combination of the Raft server and an HTTP
-// server which acts as the transport.
+// The DiVS server starts the nodes manager (for the p2p network), the devices
+// manager (for the TAP device) and the raftd server (a combination of the
+// Raft server and an HTTP server which acts as the transport)
 type Server struct {
 	config *Config
 
