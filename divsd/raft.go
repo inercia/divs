@@ -25,7 +25,6 @@ var (
 type RaftServer struct {
 	name         string
 	config       *Config
-	externalAddr string
 
 	raftServer raft.Server
 	router     *mux.Router
@@ -34,12 +33,11 @@ type RaftServer struct {
 }
 
 // Create a new Raft server
-func NewRaftServer(config *Config, externalAddr string) (*RaftServer, error) {
+func NewRaftServer(config *Config) (*RaftServer, error) {
 	s := RaftServer{
 		config:       config,
 		db:           db.New(),
 		router:       mux.NewRouter(),
-		externalAddr: externalAddr,
 	}
 
 	log.Info("Initailizaing data directory")
@@ -75,19 +73,18 @@ func NewRaftServer(config *Config, externalAddr string) (*RaftServer, error) {
 
 	// Setup commands.
 	raft.RegisterCommand(&command.WriteCommand{})
-
 	return &s, nil
 }
 
 // Joins to the leader of an existing cluster.
-func (s *RaftServer) JoinLeader(leader string) error {
+func (s *RaftServer) JoinLeader(external string, leader string) error {
 	if !s.raftServer.IsLogEmpty() {
 		log.Fatalf("Cannot join with an existing log")
 	}
 
 	command := &raft.DefaultJoinCommand{
 		Name:             s.raftServer.Name(),
-		ConnectionString: s.externalAddr,
+		ConnectionString: external,
 	}
 
 	var b bytes.Buffer
@@ -101,17 +98,18 @@ func (s *RaftServer) JoinLeader(leader string) error {
 	return nil
 }
 
-func (s *RaftServer) InitCluster() error {
+func (s *RaftServer) InitCluster(external string) error {
 	if !s.raftServer.IsLogEmpty() {
 		return ERR_LOG_NOT_EMPTY
 	}
 
 	// Initialize the server by joining itself.
 	log.Info("Initializing new cluster")
-	_, err := s.raftServer.Do(&raft.DefaultJoinCommand{
-	Name:             s.raftServer.Name(),
-	ConnectionString: s.externalAddr,
-})
+	command := &raft.DefaultJoinCommand{
+		Name:             s.raftServer.Name(),
+		ConnectionString: external,
+	}
+	_, err := s.raftServer.Do(command)
 	if err != nil {
 		log.Fatal(err)
 	}
