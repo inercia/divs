@@ -48,10 +48,7 @@ func NewNodesManager(config *Config, dm *DevManager) (*NodesManager, error) {
 }
 
 // Start the nodes manager
-func (nm *NodesManager) Start() (err error) {
-	membersExternalAddr, err := NewExternalUDPAddr(fmt.Sprintf("%s:%d", nm.config.Global.Host,
-		nm.config.Global.Port))
-
+func (nm *NodesManager) Start(membersExternalAddr net.UDPAddr) (err error) {
 	membersConfig := memberlist.DefaultWANConfig()
 	membersConfig.BindAddr = membersExternalAddr.IP.String()
 	membersConfig.BindPort = membersExternalAddr.Port
@@ -107,6 +104,16 @@ func (d *NodesManager) Stop() (err error) {
 	log.Debug("Signaling stop for discovery")
 	// TODO
 	return nil
+}
+
+func (nm *NodesManager) Join(nodes []string) {
+	// Join an existing cluster by specifying at least one known member.
+	n, err := nm.members.Join(nodes)
+	if err != nil {
+		log.Fatalf("Failed to join cluster: " + err.Error())
+	} else {
+		log.Info("Joined %d peers", n)
+	}
 }
 
 // wait some time for some peers
