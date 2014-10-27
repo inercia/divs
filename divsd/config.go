@@ -1,6 +1,6 @@
 package divsd
 
-// The config
+// The top config
 type Config struct {
 	Global   globalConfig
 	Raft     raftConfig
@@ -9,6 +9,7 @@ type Config struct {
 	Tun      tunConfig
 }
 
+// Global config
 type globalConfig struct {
 	Name   string
 	Host   string
@@ -16,20 +17,24 @@ type globalConfig struct {
 	Serial string
 }
 
-type mdnsConfig struct {
-	Port   int
-}
-
+// RAFT
 type raftConfig struct {
 	DataPath string
 	IsLeader bool
 	Leader   string
 }
 
+// MDNS discovery
+type mdnsConfig struct {
+	Port   int
+}
+
+// DHT discovery
 type discoverConfig struct {
 	Port int
 }
 
+// NAT: TUN config
 type tunConfig struct {
 	NumReaders int
 }
