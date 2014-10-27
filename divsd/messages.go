@@ -13,12 +13,13 @@ type messageType uint8
 const (
 	MSG_DB_REQ messageType = iota
 	MSG_DB_VAL
+	MSG_LAST
 )
 
 /////////////////////////////////////////////////////////////////////////
 
 type DbReq struct {
-	name string
+	Name string
 }
 
 func NewDbReqFromBuffer(in []byte) *DbReq {
@@ -30,7 +31,7 @@ func NewDbReqFromBuffer(in []byte) *DbReq {
 }
 
 func (dbReq *DbReq) ToBuffer() []byte {
-	buf, err := encode(MSG_DB_REQ, *dbReq)
+	buf, err := encode(MSG_DB_REQ, dbReq)
 	if err != nil {
 		log.Fatalf("unexpected err %s", err)
 	}
@@ -40,8 +41,8 @@ func (dbReq *DbReq) ToBuffer() []byte {
 /////////////////////////////////////////////////////////////////////////
 
 type DbVal struct {
-	name  string
-	value string
+	Name  string
+	Value string
 }
 
 func NewDbValFromBuffer(in []byte) *DbVal {
@@ -53,7 +54,7 @@ func NewDbValFromBuffer(in []byte) *DbVal {
 }
 
 func (dbVal *DbVal) ToBuffer() []byte {
-	buf, err := encode(MSG_DB_VAL, *dbVal)
+	buf, err := encode(MSG_DB_VAL, dbVal)
 	if err != nil {
 		log.Fatalf("unexpected err %s", err)
 	}
@@ -61,14 +62,6 @@ func (dbVal *DbVal) ToBuffer() []byte {
 }
 
 /////////////////////////////////////////////////////////////////////////
-
-// Decode reverses the encode operation on a byte slice input
-func decode(buf []byte, out interface{}) error {
-	r := bytes.NewReader(buf)
-	hd := codec.MsgpackHandle{}
-	dec := codec.NewDecoder(r, &hd)
-	return dec.Decode(out)
-}
 
 // Encode writes an encoded object to a new bytes buffer
 func encode(msgType messageType, in interface{}) (*bytes.Buffer, error) {
@@ -78,4 +71,12 @@ func encode(msgType messageType, in interface{}) (*bytes.Buffer, error) {
 	enc := codec.NewEncoder(buf, &hd)
 	err := enc.Encode(in)
 	return buf, err
+}
+
+// Decode reverses the encode operation on a byte slice input
+func decode(buf []byte, out interface{}) error {
+	r := bytes.NewReader(buf)
+	hd := codec.MsgpackHandle{}
+	dec := codec.NewDecoder(r, &hd)
+	return dec.Decode(out)
 }
