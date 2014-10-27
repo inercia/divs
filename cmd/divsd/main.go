@@ -21,8 +21,10 @@ func main() {
 
 			Host       string `goptions:"--host, maps='Global/Host', description='External hostname/IP to announce to peers'"`
 			Port       int    `goptions:"--port, maps='Global/Port', description='Force the external port for peers connecting'"`
-			DataPath   string `goptions:"--data, maps='Raft/DataPath', description='data path directory'"`
+
+		// raft
 			RaftLeader string `goptions:"--join, maps='Raft/Leader', description='host:port of leader to join'"`
+			DataPath   string `goptions:"--data, maps='Raft/DataPath', description='data path directory'"`
 
 		// discovery
 			DiscoverPort bool   `goptions: "--dport, maps='Discover/Port', description='discovery protocol port'"`
