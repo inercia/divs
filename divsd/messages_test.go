@@ -16,7 +16,7 @@ func TestEncodeDecode(t *testing.T) {
 	if err := decode(buf.Bytes()[1:], &out); err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
-		if msg.SeqNo != out.SeqNo {
+	if msg.SeqNo != out.SeqNo {
 		t.Fatalf("bad sequence no")
 	}
 }
