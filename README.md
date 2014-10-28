@@ -100,11 +100,33 @@ This is a bird's–eye view of the roadmap I have in mind:
       nodes (`memberlist` does not have anythning like this, it just relies in
       encryption and both parties sharing the same key)
 
-## Running
+## Installation
 
-First, install DiVS with:
+You can get several pre-build binaries from the [Drone.io](https://drone.io/github.com/inercia/divs/files)
+continuous integration server. These builds cannot be considered stable (as they
+are run after every push to the _github_ repository), but nothing here is very
+stable yet...
+
+If you prefer to build the software from the source code, you can checkout the
+DiVS repository from _github_ with:
 
 ```sh
 $ git clone https://github.com/inercia/divs.git
+```
+
+and then build the DiVS daemon with
+
+```sh
+$ make deps
+$ make all
+```
+
+This will leave a binary, `divsd.exe` at the top level directory. You can then
+check out the command line arguments with:
+
+```sh
+$ ./divsd.exe --help
+Usage: divsd.exe [global options] 
+...
 ```
 
