@@ -20,7 +20,13 @@ do
 done
 
 echo ">>> Running subtasks in $TASKS_DIR..."
-run-parts --exit-on-error $TASKS_DIR
+for SH in $TASKS_DIR/*.sh ; do
+	if [ -x $SH ] ; then
+		$SH
+		[ $? -eq 0 ] || exit 1
+	fi
+done
+
 
 
 
