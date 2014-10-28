@@ -40,19 +40,19 @@ Architecture
 
 DiVS uses the [memberlist](https://github.com/hashicorp/memberlist) library
 for managing the virtual switch membership and member failure detection. `memberlist`
-uses a gossip based protocol for spreading information like nodes that are alive,
-suspected to be down of definitely down. `memberlist` also provides some useful
+uses a gossip based protocol for spreading information (like nodes that are alive,
+suspected to be down of definitely down), but `memberlist` also provides some useful
 features like application-level messages, broadcasting of application-level
-information, encryption, compression... We use all these features for sending
+information, encryption, compression: we make use of these features for sending
 virtual traffic between nodes.
 
 DiVS maintains a distributed database of MAC addresses, mapping MAC addresses to
-nodes in the virtual network. This allows us to use the
-TAP device for traffic to/from multiple endpoints in the same host (for example,
-when using virtual machines in the physical machine). When a DiVS node detects
-some packets being written to the local TAP device with an unknown MAC address,
-it updates the distributed database, pointing other nodes to where they should
-send traffic for that MAC.
+nodes in the virtual network. This allows us to use the TAP device for traffic
+to/from multiple endpoints in the same host (for example, when using virtual
+machines in the physical machine). When a DiVS node detects some packets being
+written to the local TAP device with an unknown MAC address, it updates the
+distributed database, pointing other nodes to where they should send traffic
+for that MAC.
 
 ![MAC DiVS mapping](https://raw.githubusercontent.com/inercia/divs/master/docs/images/macs-table-overview.png)
 
