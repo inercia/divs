@@ -34,40 +34,44 @@ type RaftServer struct {
 
 // Create a new Raft server
 func NewRaftServer(config *Config) (*RaftServer, error) {
-	s := RaftServer{
-		config:       config,
-		db:           db.New(),
-		router:       mux.NewRouter(),
-	}
-
-	log.Info("Initailizaing data directory")
+	log.Info("Initializing Raft Server: using datapath directory '%s'", config.Raft.DataPath)
 	if len(config.Raft.DataPath) == 0 {
-		log.Fatalf("No data directory provided")
+		return nil, errors.New("No data directory provided")
 	}
 
 	// Set the data directory.
-	if err := os.MkdirAll(config.Raft.DataPath, 0744); err != nil {
-		log.Critical("Unable to create path: %v", err)
+	err := os.MkdirAll(config.Raft.DataPath, 0744)
+	if err != nil {
+		return nil, errors.New("Unable to create path:"+err.String())
 	}
 
-	log.Debug("Data directory: %s\n", config.Raft.DataPath)
-
 	// Read existing name or generate a new one.
-	if b, err := ioutil.ReadFile(filepath.Join(config.Raft.DataPath, "name")); err == nil {
-		s.name = string(b)
+	b, err := ioutil.ReadFile(filepath.Join(config.Raft.DataPath, "name"))
+	var name string
+	if err == nil {
+		name = string(b)
 	} else {
-		s.name = fmt.Sprintf("%07x", rand.Int())[0:7]
-		if err = ioutil.WriteFile(filepath.Join(config.Raft.DataPath, "name"), []byte(s.name), 0644); err != nil {
-			log.Fatal(err)
+		name = fmt.Sprintf("%07x", rand.Int())[0:7]
+		if err = ioutil.WriteFile(filepath.Join(config.Raft.DataPath, "name"), []byte(name), 0644); err != nil {
+			return nil, err
 		}
 	}
 
-	var e error
 	transporter := raft.NewHTTPTransporter("/raft", 200*time.Millisecond)
-	if s.raftServer, e = raft.NewServer(s.name, s.config.Raft.DataPath, transporter, nil, s.db, ""); e != nil {
+	raftServer, err := raft.NewServer(name, config.Raft.DataPath, transporter, nil, s.db, "")
+	if err != nil {
 		log.Fatal(e)
 	}
 
+	s := RaftServer{
+		name:         name,
+		config:       config,
+		db:           db.New(),
+		raftServer:   raftServer,
+		router:       mux.NewRouter(),
+	}
+
+	// install and start the transporter
 	transporter.Install(s.raftServer, &s)
 	s.raftServer.Start()
 

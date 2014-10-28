@@ -20,33 +20,29 @@ type Server struct {
 
 // Creates a new server.
 func New(config *Config) (s *Server, err error) {
-	if config == nil {
-		return nil, fmt.Errorf("could not initialize the server")
-	}
-
 	// Initialize the device manager
 	devManager, err := NewDevManager(config)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	// Initialize the peers manager
 	peersManager, err := NewNodesManager(config, devManager)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	// Initialize and start Raft server.
-	log.Info("Initializing Raft Server: %s", s.config.Raft.DataPath)
-	s.raftServer, err = NewRaftServer(config)
+	raftServer, err := NewRaftServer(config)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 
 	s = &Server{
 		config:       config,
 		devManager:   devManager,
 		nodesManager: peersManager,
+		raftServer:   raftServer,
 	}
 
 	return s, nil
