@@ -22,11 +22,12 @@ var (
 	ERR_LOG_NOT_EMPTY = errors.New("log not empty")
 )
 
+// A Raft server in the DiVS domain
 type RaftServer struct {
 	name         string
-	config       *Config
+	config       *Config // the common DiVS server configuration
 
-	raftServer raft.Server
+	raftServer raft.Server // a Raft server from the goraft
 	router     *mux.Router
 	httpServer *http.Server
 	db         *db.DB
@@ -42,7 +43,7 @@ func NewRaftServer(config *Config) (*RaftServer, error) {
 	// Set the data directory.
 	err := os.MkdirAll(config.Raft.DataPath, 0744)
 	if err != nil {
-		return nil, errors.New("Unable to create path:" + err.Error())
+		return nil, errors.New("Unable to create path:"+err.Error())
 	}
 
 	// Read existing name or generate a new one.
@@ -54,7 +55,7 @@ func NewRaftServer(config *Config) (*RaftServer, error) {
 		name = fmt.Sprintf("%07x", rand.Int())[0:7]
 		fullName := filepath.Join(config.Raft.DataPath, "name")
 		if err = ioutil.WriteFile(fullName, []byte(name), 0644); err != nil {
-			return nil, errors.New("Unable to create path " + fullName + ":" + err.Error())
+			return nil, errors.New("Unable to create path "+fullName+":"+err.Error())
 		}
 	}
 

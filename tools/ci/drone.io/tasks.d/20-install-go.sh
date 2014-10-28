@@ -9,8 +9,8 @@ if [ "$REQUIRED_VERSION" != "$INSTALLED_VERSION" ] ; then
 	echo ">>> Installing Go version $REQUIRED_VERSION..."
 	pushd `pwd`
 	cd $HOME
-	[ -f $GTAR ]    || wget -q http://golang.org/dl/$GTAR
-	[ -d $GOROOT  ] || tar -xvpf $GTAR
+	[ -f $GTAR ]           || wget -q http://golang.org/dl/$GTAR
+	[ -d /home/ubuntu/go ] || tar -xvpf $GTAR
 	popd
 fi
 
