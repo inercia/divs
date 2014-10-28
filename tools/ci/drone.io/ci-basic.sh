@@ -1,7 +1,6 @@
 #!/bin/sh
 
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-TASKS_DIR=$DIR/tasks.d
+TASKS_DIR=./tasks.d
 
 echo ">>> Running subtasks in $TASKS_DIR..."
 for SH in $TASKS_DIR/*.sh ; do
