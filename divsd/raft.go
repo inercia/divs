@@ -42,7 +42,7 @@ func NewRaftServer(config *Config) (*RaftServer, error) {
 	// Set the data directory.
 	err := os.MkdirAll(config.Raft.DataPath, 0744)
 	if err != nil {
-		return nil, errors.New("Unable to create path:"+err.String())
+		return nil, errors.New("Unable to create path:" + err.Error())
 	}
 
 	// Read existing name or generate a new one.
@@ -52,21 +52,23 @@ func NewRaftServer(config *Config) (*RaftServer, error) {
 		name = string(b)
 	} else {
 		name = fmt.Sprintf("%07x", rand.Int())[0:7]
-		if err = ioutil.WriteFile(filepath.Join(config.Raft.DataPath, "name"), []byte(name), 0644); err != nil {
-			return nil, err
+		fullName := filepath.Join(config.Raft.DataPath, "name")
+		if err = ioutil.WriteFile(fullName, []byte(name), 0644); err != nil {
+			return nil, errors.New("Unable to create path " + fullName + ":" + err.Error())
 		}
 	}
 
+	raftDb := db.New()
 	transporter := raft.NewHTTPTransporter("/raft", 200*time.Millisecond)
-	raftServer, err := raft.NewServer(name, config.Raft.DataPath, transporter, nil, s.db, "")
+	raftServer, err := raft.NewServer(name, config.Raft.DataPath, transporter, nil, raftDb, "")
 	if err != nil {
-		log.Fatal(e)
+		return nil, err
 	}
 
 	s := RaftServer{
 		name:         name,
 		config:       config,
-		db:           db.New(),
+		db:           raftDb,
 		raftServer:   raftServer,
 		router:       mux.NewRouter(),
 	}
@@ -75,7 +77,7 @@ func NewRaftServer(config *Config) (*RaftServer, error) {
 	transporter.Install(s.raftServer, &s)
 	s.raftServer.Start()
 
-	// Setup commands.
+	// Setup commands
 	raft.RegisterCommand(&command.WriteCommand{})
 	return &s, nil
 }
