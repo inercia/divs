@@ -15,12 +15,11 @@ different networks but mutually reachable through the Internet.
 
 In this example, machines A, B and C are located in different networks but
 they are all connected to the Internet, so they can send traffic to each other.
-
-DiVS creates a TAP device (something like a regular ethernet device) in each of
-these machines, and then you can assign an IP address to each device (in this
-example, we have assigned IPs in the 10.0.1.0/24 range). These three machines
-connected this way with DiVS would have the illusion of being connected to a regular
-switch like this:
+In this scenario, DiVS creates a [TAP device](http://en.wikipedia.org/wiki/TUN/TAP)
+(something like a regular ethernet device) in each of these machines, and then
+you can assign an IP address to each device (in this example, we have assigned
+IPs in the 10.0.1.0/24 range). These three machines connected this way with DiVS
+would have the illusion of being connected to a regular switch like this:
 
 ![Equivalent Switch](https://raw.githubusercontent.com/inercia/divs/master/docs/images/equivalent-switch.png)
 
@@ -62,14 +61,18 @@ a distributed database could
   * provide a higher consistency level for the information stored (for example,
   DiVS nodes could respond to ARP requests in the local TAP device with always
   up-to-date information).
-  * constitute an important stepping stone for new features like
-    * intelligent multicast routing (ie, IGMP snooping)
-    * layer 3 routing, where the database should be always consistent even when
-    it could be modified in parallel. 
+  * constitute an important stepping stone for new features, enhancing the database
+  schema with more information where we could implement 
+    * intelligent multicast routing (ie, [IGMP snooping](http://en.wikipedia.org/wiki/IGMP_snooping),
+    where we keep a list of *who-is-subscribed-to-what multicast group*)
+    * layer 3 routing, where the database could be always consistent even when
+    routing information could be modified in parallel. 
 
 I plan to make use of the [goraft](https://github.com/goraft/raft) library for
 implementing the distributed database. Raft is a distributed consensus protocol
-similar to Paxos but (it is supposed to be) understandable. From the Raft web page:
+similar to Paxos but (it is supposed to be) understandable. Raft keeps a
+distributed log of commands where all the nodes have the same view of the order
+of events. From the Raft web page:
 
 > To maintain state, a log of commands is maintained. Each command makes a change
 > to the state of the server and the command is deterministic. By
@@ -77,11 +80,12 @@ similar to Paxos but (it is supposed to be) understandable. From the Raft web pa
 > in the cluster we can replicate the state at any point in time in the log
 > by running each command sequentially.
 
-So we could add commands like *"this MAC is connected at this DiVS node"* or, in
-the future, routing instructions like *"traffic for 192.168.9.0/24 goes to this
-DiVS node"*. In a distributed database like this, all these commands would always
-have the same order in all nodes, so the consistency would assure that we would
-never enter a situation where two DiVS nodes could be doing contradictory actions.
+So we could use commands like *"this MAC is connected at this DiVS node"* or, in
+the future, routing commands like *"traffic for 192.168.9.0/24 goes to this
+DiVS node"*, firewall rules, connection tracking and NAT information, etc. In a
+distributed database based in Raft, all these commands would always
+have the same order in all nodes, assuring that we would never enter a situation
+where two DiVS nodes could be doing contradictory actions.
 
 ## Status
 
