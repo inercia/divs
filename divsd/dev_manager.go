@@ -34,8 +34,8 @@ func GetLocalAddresses() {
 
 /////////////////////////////////////////////////////////////////////////////
 
-// create a new Tap device manager
-// this manager will be responsible for reading from the device and sending
+// Create a new devices manager, in practice a TAP device manager
+// This manager will be responsible for reading from the device and sending
 // data to the right peers
 func NewDevManager(config *Config) (d *DevManager, err error) {
 	d = &DevManager{
@@ -54,7 +54,7 @@ func (d *DevManager) devReader(packetsChan chan []byte, wg *sync.WaitGroup) {
 	}
 }
 
-// initialize the tap device and start reading from it
+// Start the TAP device and start reading from it
 func (d *DevManager) Start() (err error) {
 	log.Info("Initializing tap device...\n")
 
@@ -86,7 +86,7 @@ func (d *DevManager) Start() (err error) {
 			log.Info("Error reading from tap device: %s", err)
 			break
 		}
-		// TODO: split/parse... the packet and send it to the workers
+		// TODO: split/parse... the packet and send it to the righ worker
 		pCh <- packet
 	}
 

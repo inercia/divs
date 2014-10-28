@@ -18,6 +18,7 @@ const (
 
 /////////////////////////////////////////////////////////////////////////
 
+// A database request message
 type DbReq struct {
 	Name string
 }
@@ -40,6 +41,7 @@ func (dbReq *DbReq) ToBuffer() []byte {
 
 /////////////////////////////////////////////////////////////////////////
 
+// A database value message
 type DbVal struct {
 	Name  string
 	Value string

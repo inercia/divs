@@ -1,6 +1,6 @@
 package divsd
 
-// The top config
+// The top configuration structure for the DiVS daemon
 type Config struct {
 	Global   globalConfig
 	Raft     raftConfig
@@ -39,7 +39,7 @@ type tunConfig struct {
 	NumReaders int
 }
 
-// create a new config
+// Create a new DiVS daemon configuration
 func NewConfig() (c *Config) {
 	c = &Config{}
 	return

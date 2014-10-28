@@ -23,7 +23,7 @@ func getExternalAddr(defaultIp net.IP, defaultPort int) (net.IP, int, error) {
 	return defaultIp, defaultPort, nil
 }
 
-// Obtain a new external TCP address
+// Obtain a new external TCP address, providing a default value
 func NewExternalTCP(tcpAddr net.TCPAddr) (net.TCPAddr, error) {
 	ip, port, err := getExternalAddr(tcpAddr.IP, tcpAddr.Port)
 	if err != nil {
@@ -32,6 +32,7 @@ func NewExternalTCP(tcpAddr net.TCPAddr) (net.TCPAddr, error) {
 	return net.TCPAddr{}, nil
 }
 
+// Obtain a new external TCP address, providing the default value as a string
 func NewExternalTCPAddr(addr string) (net.TCPAddr, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -42,7 +43,7 @@ func NewExternalTCPAddr(addr string) (net.TCPAddr, error) {
 	return NewExternalTCP(tcpAddr)
 }
 
-// Obtain a new external UDP address
+// Obtain a new external UDP address, providing a default value
 func NewExternalUDP(udpAddr net.UDPAddr) (net.UDPAddr, error) {
 	ip, port, err := getExternalAddr(udpAddr.IP, udpAddr.Port)
 	if err != nil {
@@ -51,6 +52,7 @@ func NewExternalUDP(udpAddr net.UDPAddr) (net.UDPAddr, error) {
 	return net.UDPAddr{}, nil
 }
 
+// Obtain a new external UDP address, providing the default value as a string
 func NewExternalUDPAddr(addr string) (net.UDPAddr, error) {
 	host, port, err := net.SplitHostPort(addr)
 	if err != nil {
@@ -61,7 +63,8 @@ func NewExternalUDPAddr(addr string) (net.UDPAddr, error) {
 	return NewExternalUDP(udpAddr)
 }
 
-// a new external address, with default values
+// Obtain a new external address, returning a UDP or TCP address depending on
+// the default value provided.
 func NewExternal(addr interface{}) (interface{}, error) {
 	switch addr.(type) {
 	case net.TCPAddr:

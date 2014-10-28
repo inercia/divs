@@ -16,9 +16,12 @@ In this example, machines A, B and C are located in different networks but
 they are all connected to the Internet, so they can send traffic to each other.
 In this scenario, DiVS creates a [TAP device](http://en.wikipedia.org/wiki/TUN/TAP)
 (something like a regular ethernet device) in each of these machines, and then
-you can assign an IP address to each device (in this example, we have assigned
-IPs in the 10.0.1.0/24 range). These three machines connected this way with DiVS
-would have the illusion of being connected to a regular switch like this:
+it establishes something like a _P2P VPN_ between these three nodes where they appear
+to be all connected to the same network segment. You must assign IP addresses to
+these machines (the same you would do in a regular network). In this example, we
+have assigned IPs in the 10.0.1.0/24 range, so the machines connected this way
+with DiVS would have the illusion of being connected to a regular switch like
+this:
 
 ![Equivalent Switch](https://raw.githubusercontent.com/inercia/divs/master/docs/images/equivalent-switch.png)
 

@@ -2,6 +2,7 @@ package divsd
 
 import "testing"
 
+// A global test for the encoding/decoding functions
 func TestEncodeDecode(t *testing.T) {
 	type ping struct {
 		SeqNo int
@@ -31,6 +32,7 @@ func TestDbReqSerialization(t *testing.T) {
 	}
 }
 
+// Benchmark for DbReq serialization/deserializations
 func BenchmarkDbReqSerialization(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		dbreq := DbReq{Name: "ABCDEFGHIJKLMNOPQRSTUVWXYZ"}
@@ -49,6 +51,7 @@ func TestDbValSerialization(t *testing.T) {
 	}
 }
 
+// Benchmark for DbVal serialization/deserialization
 func BenchmarkDbValSerialization(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		dbVal := DbVal{Name: "ABCDEFGHIJKLMNOPQRSTUVWXYZ", Value: "1234567890"}
