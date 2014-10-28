@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 echo ">>> Building in" `pwd`
 make deps
