@@ -46,9 +46,9 @@ features like application-level messages, broadcasting of application-level
 information, encryption, compression: we make use of these features for sending
 virtual traffic between nodes.
 
-DiVS maintains a distributed database of MAC addresses, mapping MAC addresses to
+DiVS maintains a _distributed database_ of MAC addresses, mapping MAC addresses to
 nodes in the virtual network. This allows us to use the TAP device for traffic
-to/from multiple endpoints in the same host (for example, when using virtual
+to/from multiple endpoints in the same node (for example, when using virtual
 machines in the physical machine). When a DiVS node detects some packets being
 written to the local TAP device with an unknown MAC address, it updates the
 distributed database, pointing other nodes to where they should send traffic
