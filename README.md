@@ -63,9 +63,9 @@ a distributed database could
   up-to-date information).
   * constitute an important stepping stone for new features, enhancing the database
   schema with more information where we could implement 
-    * intelligent multicast routing (ie, [IGMP snooping](http://en.wikipedia.org/wiki/IGMP_snooping),
+    - intelligent multicast routing (ie, [IGMP snooping](http://en.wikipedia.org/wiki/IGMP_snooping),
     where we keep a list of *who-is-subscribed-to-what multicast group*)
-    * layer 3 routing, where the database could be always consistent even when
+    - layer 3 routing, where the database could be always consistent even when
     routing information could be modified in parallel. 
 
 I plan to make use of the [goraft](https://github.com/goraft/raft) library for
