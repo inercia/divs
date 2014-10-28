@@ -63,7 +63,7 @@ PACKAGING_COMMON=\
 	-s dir \
 	-v $(VERSION) \
 	-n divs \
-	--config-files /usr/local/etc/divs/divs.conf \
+	--config-files /usr/local/etc/divs/divsd.conf \
 	divsd.exe=/usr/local/bin/divsd \
 	conf/etc/divsd.conf=/usr/local/etc/divs/divsd.conf
 

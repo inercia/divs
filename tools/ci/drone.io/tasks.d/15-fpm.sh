@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/bin/bash
+#
+# recipe obtained from 
+# https://leonard.io/blog/2012/05/installing-ruby-1-9-3-on-ubuntu-12-04-precise-pengolin/
 
 echo ">>> Installing FPM..."
 sudo apt-get update
