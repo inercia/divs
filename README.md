@@ -6,10 +6,9 @@ DiVS
 
 ## Overview
 
-The DiVS server is a distributed virtual switch.
-
-It allows you to create a switch where the connected hosts are located at
-different networks but mutually reachable through the Internet.
+The DiVS is a distributed virtual switch. It allows you to create a switch where
+the connected hosts are located at different networks but mutually reachable
+through the Internet.
 
 ![Overview](https://raw.githubusercontent.com/inercia/divs/master/docs/images/overview.png)
 
