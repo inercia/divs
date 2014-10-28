@@ -13,20 +13,88 @@ different networks but mutually reachable through the Internet.
 
 ![Overview](https://raw.githubusercontent.com/inercia/divs/master/docs/images/overview.png)
 
-DiVS mantains a distributed database of MAC addresses that associate each MAC
-to a node in the virtual topology. This feature wouldn't be strictly necessary (as
-ethernet is not a reliable medium), but I plan to make use of the
-[goraft](https://github.com/goraft/raft) library for the distributed database, so
-it should be easy to add some reliability and consistency to the MAC to Node
-mapping...
+In this example, machines A, B and C are located in different networks but
+they are all connected to the Internet, so they can send traffic to each other.
+
+DiVS creates a TAP device (something like a regular ethernet device) in each of
+these machines, and then you can assign an IP address to each device (in this
+example, we have assigned IPs in the 10.0.1.0/24 range). These three machines
+connected this way with DiVS would have the illusion of being connected to a regular
+switch like this:
+
+![Equivalent Switch](https://raw.githubusercontent.com/inercia/divs/master/docs/images/equivalent-switch.png)
+
+Terminology
+-----------
+
+  * `node`: each of the machines where a DiVS daemon is running (in this example,
+  nodes A, B and C)
+  * `tap device`: a device that simulates a link layer device and it operates
+  with layer 2 packets like Ethernet frames. It can be used for creating a network bridge.
+  * `endpoint`: a physical or virtual machine, with a MAC address, that is associated
+  with a DiVS TAP device and sends and/or receives ethernet data.
+
+Architecture
+------------
+
+DiVS uses the [memberlist](https://github.com/hashicorp/memberlist) library
+for managing the virtual switch membership and member failure detection. `memberlist`
+uses a gossip based protocol for spreading information like nodes that are alive,
+suspected to be down of definitely down. `memberlist` also provides some useful
+features like application-level messages, broadcasting of application-level
+information, encryption, compression... We use all these features for sending
+virtual traffic between nodes.
+
+DiVS maintains a distributed database of MAC addresses, mapping MAC addresses to
+nodes in the virtual network. This allows us to use the
+TAP device for traffic to/from multiple endpoints in the same host (for example,
+when using virtual machines in the physical machine). When a DiVS node detects
+some packets being written to the local TAP device with an unknown MAC address,
+it updates the distributed database, pointing other nodes to where they should
+send traffic for that MAC.
+
+![MAC DiVS mapping](https://raw.githubusercontent.com/inercia/divs/master/docs/images/macs-table-overview.png)
+
+This feature wouldn't be strictly necessary as MAC to DiVS node information could
+be spread in the network with the help of `memberlist`'s gossip messages, but
+a distributed database could
+
+  * provide a higher consistency level for the information stored (for example,
+  DiVS nodes could respond to ARP requests in the local TAP device with always
+  up-to-date information).
+  * constitute an important stepping stone for new features like
+    * intelligent multicast routing (ie, IGMP snooping)
+    * layer 3 routing, where the database should be always consistent even when
+    it could be modified in parallel. 
+
+I plan to make use of the [goraft](https://github.com/goraft/raft) library for
+implementing the distributed database. Raft is a distributed consensus protocol
+similar to Paxos but (it is supposed to be) understandable. From the Raft web page:
+
+> To maintain state, a log of commands is maintained. Each command makes a change
+> to the state of the server and the command is deterministic. By
+> ensuring that this log is replicated identically between all the nodes
+> in the cluster we can replicate the state at any point in time in the log
+> by running each command sequentially.
+
+So we could add commands like *"this MAC is connected at this DiVS node"* or, in
+the future, routing instructions like *"traffic for 192.168.9.0/24 goes to this
+DiVS node"*. In a distributed database like this, all these commands would always
+have the same order in all nodes, so the consistency would assure that we would
+never enter a situation where two DiVS nodes could be doing contradictory actions.
 
 ## Status
 
 I'm currently going forward in the basic features of the distributed switch.
+This is a bird's–eye view of the roadmap I have in mind:
 
 + [ ] implement the distributed database for MAC addesses
 + [ ] parse packets comming from the TAP device
 + [ ] send the ethernet packets as UDP packets with the memberlist Send* facility.
++ [ ] remove the raft transport over HTTP: move it to the memberlist transport
++ [ ] implement some kind of challenge-response in the initial connection between
+      nodes (`memberlist` does not have anythning like this, it just relies in
+      encryption and both parties sharing the same key)
 
 ## Running
 
