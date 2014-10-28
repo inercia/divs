@@ -1,8 +1,5 @@
 #!/bin/bash
 
-export GOROOT=/home/ubuntu/go
-export PATH=$GOROOT/bin:/home/ubuntu/bin:$PATH
-
 REQUIRED_VERSION="go1.3.3"
 INSTALLED_VERSION=$(go version | awk '{ print $3 }')
 
@@ -16,5 +13,8 @@ if [ "$REQUIRED_VERSION" != "$INSTALLED_VERSION" ] ; then
 	[ -d $GOROOT  ] || tar -xvpf $GTAR
 	popd
 fi
+
+export GOROOT=/home/ubuntu/go
+export PATH=$GOROOT/bin:/home/ubuntu/bin:$PATH
 
 exit 0

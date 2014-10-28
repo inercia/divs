@@ -1,4 +1,11 @@
 divs
+divsd.exe
 
 server/protobuf/*.pb.go
 server/protobuf/*pb_test.go
+
+.externalToolBuilders/
+.idea/
+.project
+.settings/
+divs.iml
