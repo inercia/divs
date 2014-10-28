@@ -121,7 +121,7 @@ $ make deps
 $ make all
 ```
 
-This will leave a binary, `divsd.exe` at the top level directory. You can then
+This will leave a binary, `divsd.exe`, at the top level directory. You can then
 check out the command line arguments with:
 
 ```sh
