@@ -59,7 +59,7 @@ func main() {
 
 	// check if we are creating a new switch or just joining an existing one.
 	// if we are creating one, we must create a new serial...
-	if len(config.Global.Serial) == 0 {
+	if config.Global.Serial.Empty() {
 		if options.Create {
 			config.Global.Serial = divsd.NewSwitchId()
 			config.Raft.IsLeader = true
