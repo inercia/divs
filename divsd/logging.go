@@ -11,10 +11,10 @@ var log = logging.MustGetLogger(LOG_MODULE)
 // Example format string. Everything except the message has a custom color
 // which is dependent on the log level. Many fields have a custom output
 // formatting too, eg. the time returns the hour down to the milli second.
-var format = "%{color}%{time:15:04:05.000000} ▶ %{level:.4s} %{id:03x}%{color:reset} %{message}"
+var format = "%{color}%{time:15:04:05.000000} ▶ [%{level:.4s}] %{id:03x}%{color:reset} %{message}"
 
 func init() {
-	logging.SetFormatter(logging.MustStringFormatter(format))
+	// logging.SetFormatter(logging.MustStringFormatter(format))
 
 	// Setup one stderr and one syslog backend and combine them both into one
 	// logging backend. By default stderr is used with the standard log flag.
@@ -31,4 +31,15 @@ func init() {
 	//	logging.ERROR, logging.WARNING, logging.INFO} {
 	//}
 	logging.SetLevel(logging.INFO, LOG_MODULE)
+}
+
+// dirty trick for creating a logger redirecter
+type loggerW bool
+var loggerWritter loggerW
+
+// Implement the writer method for the log, so we can set it in the memberlist config
+func (logger loggerW) Write(p []byte) (n int, err error) {
+	msg := string(p)
+	log.Info(skipFields(msg, " ", 3))
+	return len(msg), nil
 }
