@@ -13,28 +13,29 @@ import (
 )
 
 func main() {
-
-	var log = logging.MustGetLogger("divs")
-
+	// command line options
+	// note: do not break lines in goptions [alvaro]
 	options := struct {
-			ConfigPath string `goptions:"-c, --config, config, description='Config file name'"`
+			ConfigPath string `goptions:"-c, --config, config, description='config file name'"`
 
-			Host       string `goptions:"--host, maps='Global/Host', description='External hostname/IP to announce to peers'"`
-			Port       int    `goptions:"--port, maps='Global/Port', description='Force the external port for peers connecting'"`
+		// external IP/port
+			Host       string `goptions:"--host, maps='Global/Host', description='forced external hostname/IP to announce to peers'"`
+			Port       int    `goptions:"--port, maps='Global/Port', description='forced external port to announce to peers'"`
 
 		// raft
-			RaftLeader string `goptions:"--join, maps='Raft/Leader', description='host:port of leader to join'"`
+			RaftLeader string `goptions:"--leader, maps='Raft/Leader', description='forced host:port of leader to join'"`
 			DataPath   string `goptions:"--data, maps='Raft/DataPath', description='data path directory'"`
 
+		// switch
+			Create     bool   `goptions:"--create, description='create a new virtual switch'"`
+			Serial     string `goptions:"--join, description='virtual switch serial number to join'"`
+
 		// discovery
-			DiscoverPort bool   `goptions: "--dport, maps='Discover/Port', description='discovery protocol port'"`
-			Create       bool   `goptions: "--create, description='create a new switch'"`
-			Join         string `goptions: "--serial, maps='Global/Serial',
-		                     description='switch serial number to join'"`
+			DiscoverPort int    `goptions:"--dhtport, maps='Discover/Port', description='discovery protocol port'"`
 
 		// other
 			Timeout time.Duration `goptions:"-t, --timeout, description='connection timeout in seconds'"`
-			Pidfile string        `goptions:"--pidfile, description='PID file'"`
+			Pidfile string        `goptions:"--pidfile, description='file where the PID will be saved'"`
 
 		// aux
 			Help    goptions.Help `goptions:"-h, --help, description='show this help'"`
@@ -42,7 +43,8 @@ func main() {
 			Trace   bool          `goptions:"--trace"`
 			Debug   bool          `goptions:"--debug"`
 		}{ // Default values goes here
-		Create:   true,
+		Create:   false,
+		Serial:   "",
 		Timeout:  DEFAULT_TIMEOUT,
 		Host:     "",
 		DataPath: DEFAULT_DATA_PATH,
@@ -55,25 +57,6 @@ func main() {
 	if err != nil {
 		log.Critical("# Error: when loading config file: %s", err)
 		os.Exit(1)
-	}
-
-	// check if we are creating a new switch or just joining an existing one.
-	// if we are creating one, we must create a new serial...
-	if config.Global.Serial.Empty() {
-		if options.Create {
-			config.Global.Serial = divsd.NewSwitchId()
-			config.Raft.IsLeader = true
-		} else {
-			log.Critical("# Error: would try to join a switch but no serial provided")
-			os.Exit(1)
-		}
-	} else {
-		if options.Create {
-			log.Critical("# Error: cannot provide serial when creating switch")
-			os.Exit(1)
-		} else {
-			config.Raft.IsLeader = false
-		}
 	}
 
 	if len(options.Pidfile) > 0 {
@@ -95,6 +78,17 @@ func main() {
 		log.Info("Raft debugging enabled.")
 	}
 
+	// check if we are creating a new switch or just joining an existing one.
+	// if we are creating one, we must create a new serial...
+	if options.Create || len(options.Serial) == 0 {
+		config.Global.Serial = divsd.NewSwitchId()
+		config.Raft.IsLeader = true
+		log.Info("Creating virtual switch ID:%s", config.Global.Serial)
+	} else {
+		log.Info("Will join virtual switch %s", options.Serial)
+		config.Global.Serial = divsd.NewSwitchFromString(options.Serial)
+		config.Raft.IsLeader = false
+	}
 	rand.Seed(time.Now().UnixNano())
 
 	s, err := divsd.New(config)
