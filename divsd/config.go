@@ -14,7 +14,7 @@ type globalConfig struct {
 	Name   string
 	Host   string
 	Port   int
-	Serial string
+	Serial UUID
 }
 
 // RAFT
