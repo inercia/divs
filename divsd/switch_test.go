@@ -6,7 +6,8 @@ import (
 
 func TestSwitchId(t *testing.T) {
 	if testing.Short() {
-		if NewSwitchId() == "" {
+		sw := NewSwitchId()
+		if ! sw.Empty() {
 			t.Fail()
 		}
 	}
