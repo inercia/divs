@@ -9,11 +9,14 @@ import (
 )
 
 type DevManager struct {
-	numWorkers int
-	tun        *tuntap.TunTap
-	mutex      sync.RWMutex
+	numWorkers       int
+	tun             *tuntap.TunTap
+	packetsChan      chan []byte
+	wg              *sync.WaitGroup
+	mutex            sync.RWMutex
 }
 
+// Get all the local addresses
 func GetLocalAddresses() {
 	list, err := net.Interfaces()
 	if err != nil {
@@ -21,7 +24,7 @@ func GetLocalAddresses() {
 	}
 
 	for i, iface := range list {
-		fmt.Printf("%d name=%s %v\n", i, iface.Name, iface)
+		log.Debug("%d name=%s %v", i, iface.Name, iface)
 		addrs, err := iface.Addrs()
 		if err != nil {
 			panic(err)
@@ -39,23 +42,15 @@ func GetLocalAddresses() {
 // data to the right peers
 func NewDevManager(config *Config) (d *DevManager, err error) {
 	d = &DevManager{
-		numWorkers: config.Tun.NumReaders,
+		numWorkers    : config.Tun.NumReaders,
+		packetsChan   : make(chan []byte),
+		wg            : new(sync.WaitGroup),
 	}
 	return d, nil
 }
 
-func (d *DevManager) devReader(packetsChan chan []byte, wg *sync.WaitGroup) {
-	// Decreasing internal counter for wait-group as soon as goroutine finishes
-	defer wg.Done()
-
-	for packet := range packetsChan {
-		// Do the job here
-		log.Info("Read %d", len(packet))
-	}
-}
-
 // Start the TAP device and start reading from it
-func (d *DevManager) Start() (err error) {
+func (dman *DevManager) Start() (err error) {
 	log.Info("Initializing tap device...\n")
 
 	euid := os.Geteuid()
@@ -63,38 +58,55 @@ func (d *DevManager) Start() (err error) {
 		log.Info("WARNING: effective uid (%d) is not root: you may have not enough privileges...\n", euid)
 	}
 
-	d.tun, err = tuntap.NewTAP("")
+	dman.tun, err = tuntap.NewTAP("")
 	if err != nil {
 		return fmt.Errorf("%s", err)
 	}
-	log.Info("... tap device: %s\n", d.tun.Name())
-
-	pCh := make(chan []byte)
-	wg := new(sync.WaitGroup)
+	log.Info("... tap device: %s\n", dman.tun.Name())
 
 	// Adding routines to workgroup and running then
-	for i := 0; i < d.numWorkers; i++ {
-		wg.Add(1)
-		go d.devReader(pCh, wg)
+	for i := 0; i < dman.numWorkers; i++ {
+		dman.wg.Add(1)
+		go dman.packetProcessor()
 	}
 
-	// Processing all packets by spreading them to `free` goroutines
-	for {
-		packet := make([]byte, 1500)
-		_, err := d.tun.Read(packet)
-		if err != nil {
-			log.Info("Error reading from tap device: %s", err)
-			break
-		}
-		// TODO: split/parse... the packet and send it to the righ worker
-		pCh <- packet
-	}
-
-	// Closing channel (waiting in goroutines won't continue any more)
-	close(pCh)
-
-	// Waiting for all goroutines to finish (otherwise they die as main routine dies)
-	wg.Wait()
+	go dman.devReader()
 
 	return nil
+}
+
+func (dman *DevManager) Stop() {
+	// Closing channel (waiting in goroutines won't continue any more)
+	close(dman.packetsChan)
+
+	// Waiting for all goroutines to finish (otherwise they die as main routine dies)
+	dman.wg.Wait()
+}
+
+func (dman *DevManager) devReader() {
+	// Processing all packets by spreading them to `free` goroutines
+	log.Debug("Starting reading from TAP device...")
+	for {
+		packet := make([]byte, 1500)
+		_, err := dman.tun.Read(packet)
+		if err != nil {
+			log.Info("Error reading from TAP device: %s", err)
+			break
+		} else {
+			log.Debug("New packet read from TAP device")
+			// TODO: split/parse... the packet and send it to the righ worker
+			dman.packetsChan <- packet
+		}
+	}
+}
+
+// Process a packet: parse it, see where it goes, etc...
+func (dman *DevManager) packetProcessor() {
+	// Decreasing internal counter for wait-group as soon as goroutine finishes
+	defer dman.wg.Done()
+
+	for packet := range dman.packetsChan {
+		// TODO: do the job here
+		log.Info("Read %d", len(packet))
+	}
 }
