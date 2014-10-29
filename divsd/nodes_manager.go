@@ -55,7 +55,7 @@ func (nm *NodesManager) Start(membersExternalAddr net.UDPAddr) (err error) {
 	membersConfig.BindPort = extPort
 	membersConfig.Delegate = nm
 	membersConfig.LogOutput = loggerWritter
-	membersConfig.EnableNotifyUnsupMsgs = true
+	//membersConfig.EnableNotifyUnsupMsgs = true
 
 	members, err := memberlist.Create(membersConfig)
 	if err != nil {
