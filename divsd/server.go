@@ -51,8 +51,8 @@ func New(config *Config) (s *Server, err error) {
 // Starts the server.
 func (s *Server) ListenAndServe() error {
 	// obtain a externally-reachable IP/port for memberlist management
-	membersExternalAddr, err := NewExternalUDPAddr(fmt.Sprintf("%s:%d",
-		s.config.Global.Host, s.config.Global.Port))
+	defaultExternalAddr := fmt.Sprintf("%s:%d", s.config.Global.Host, s.config.Global.Port)
+	membersExternalAddr, err := NewExternalUDPAddr(defaultExternalAddr)
 
 	// start the peers manager
 	if err = s.nodesManager.Start(membersExternalAddr); err != nil {
@@ -64,28 +64,29 @@ func (s *Server) ListenAndServe() error {
 		log.Fatalf("Error when initialing tun/tap device manager: %s", err)
 	}
 
-	log.Debug("Is leader? %t", s.config.Raft.IsLeader)
+	log.Debug("Are we the leader? %t", s.config.Raft.IsLeader)
 	if s.config.Raft.IsLeader {
-		log.Debug("... yes: we will try to connect to the leader")
+		log.Debug("... yes: we will not try to connect to anyone")
+		if err := s.raftServer.InitCluster(membersExternalAddr.String()); err != nil {
+			log.Fatalf("Could not initialize cluster: %v", err)
+		}
+		if err := s.nodesManager.WaitForNodes(); err != nil {
+			return err
+		}
+	} else {
+		log.Debug("... no: we will try to connect to the leader")
 		s.nodesManager.WaitForNodes()
 
 		// Join to leader if specified.
 		log.Info("Attempting to join leader:", s.config.Raft.Leader)
 
 		// Join an existing cluster by specifying at least one known member.
-		s.nodesManager.Join([]string{s.config.Raft.Leader})
-
+		if err := s.nodesManager.Join([]string{s.config.Raft.Leader}); err != nil {
+			return err
+		}
 		if err := s.raftServer.JoinLeader(membersExternalAddr.String(), s.config.Raft.Leader); err != nil {
-			log.Fatalf("Could not join %s: %v", s.config.Raft.Leader, err)
+			return err
 		}
-	} else {
-		log.Debug("... no: we will not try to connect to anyone")
-		if err := s.raftServer.InitCluster(membersExternalAddr.String()); err != nil {
-			log.Fatalf("Could not initialize cluster: %v", err)
-		}
-
-		log.Debug("... yes: we will try to connect to the leader")
-		s.nodesManager.WaitForNodes()
 	}
 
 	log.Debug("Initializing Raft transport")

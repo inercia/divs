@@ -7,16 +7,15 @@ import (
 
 	"github.com/hashicorp/memberlist"
 	rendezvous "github.com/inercia/divs/divsd/rendezvous"
+	"errors"
 )
 
 // A rendezvous service: something we can use for joining a groups of nodes that
 // also provide a service, or for announcing ourselves...
 type RendezvousService interface {
-	// Announce the service, publishing with the external address provided
-	Announce(string) error
-
-	// Discover other nodes for the same service
-	Discover(chan string) error
+	// Announce the service (publishing with the external address provided) and
+	// discover other nodes for the same service
+	AnnounceAndDiscover(string, chan string) error
 
 	// Leave the rendezvous
 	Leave() error
@@ -26,11 +25,9 @@ type RendezvousService interface {
 // - establishing and keeping connections to peers
 // - sending/receiving data to/from peers
 type NodesManager struct {
-	config *Config
+	newNodesChan      chan string // we send to this channel new, joined peers
 
-	newNodesChan chan string // we'll send to this channel when we discover a new peer
-
-	externalMemberAddr string
+	config            *Config
 	devManager        *DevManager
 	members           *memberlist.Memberlist
 }
@@ -43,16 +40,23 @@ func NewNodesManager(config *Config, dm *DevManager) (*NodesManager, error) {
 		newNodesChan:  make(chan string),
 		devManager:    dm,
 	}
-
 	return &d, nil
 }
 
 // Start the nodes manager
 func (nm *NodesManager) Start(membersExternalAddr net.UDPAddr) (err error) {
+	log.Debug("Starting nodes manager")
 	membersConfig := memberlist.DefaultWANConfig()
-	membersConfig.BindAddr = membersExternalAddr.IP.String()
-	membersConfig.BindPort = membersExternalAddr.Port
+
+	extIp := membersExternalAddr.IP.String()
+	extPort := membersExternalAddr.Port
+	log.Debug("Memberlist external IP/Port: %s:%d", extIp, extPort)
+	membersConfig.BindAddr = extIp
+	membersConfig.BindPort = extPort
 	membersConfig.Delegate = nm
+	membersConfig.LogOutput = loggerWritter
+	membersConfig.EnableNotifyUnsupMsgs = true
+
 	members, err := memberlist.Create(membersConfig)
 	if err != nil {
 		return fmt.Errorf("Failed to create memberlist: " + err.Error())
@@ -63,38 +67,45 @@ func (nm *NodesManager) Start(membersExternalAddr net.UDPAddr) (err error) {
 	go func() {
 		for address := range discovered {
 			// Join an existing cluster by specifying at least one known member.
-			contacted, err := nm.members.Join([]string{address})
+			numContacted, err := nm.members.Join([]string{address})
 			if err != nil {
-				log.Error("Failed to join cluster: " + err.Error())
+				log.Error("Failed to join node at %s: %s", address, err.Error())
+			} else if numContacted > 0 {
+				log.Debug("Joined %s", address)
+				nm.newNodesChan <- address
 			} else {
-				log.Debug("Joined %d nodes in the cluster", contacted)
+				log.Debug("No nodes contacted... but no error!!!")
 			}
-
-			nm.newNodesChan <- address
 		}
 	}()
 
+	serviceId := nm.config.Global.Serial.ToHex()
 
 	// create the MDNS service
-	mdnsAddr := fmt.Sprintf("0.0.0.0:%d", nm.config.Mdns.Port)
-	mdnsService, err := rendezvous.NewMdnsService(mdnsAddr, nm.config.Global.Serial)
-	if err != nil {
-		return err
-	}
-	mdnsService.Announce(membersExternalAddr.String())
-	mdnsService.Discover(discovered)
+	go func() {
+		mdnsService, err := rendezvous.NewMdnsService("", serviceId)
+		if err != nil {
+			log.Error("Could not start the mDNS service")
+		} else {
+			mdnsService.AnnounceAndDiscover(membersExternalAddr.String(), discovered)
+		}
+	}()
 
 	// create the DHT service by previously obtaining an external TCP address
-	dhtAddr, err := NewExternalTCPAddr(fmt.Sprintf("0.0.0.0:%d", nm.config.Discover.Port))
-	if err != nil {
-		return
-	}
-	dhtService, err := rendezvous.NewDhtService(dhtAddr.String(), nm.config.Global.Serial)
-	if err != nil {
-		return
-	}
-	dhtService.Announce(membersExternalAddr.String())
-	dhtService.Discover(discovered)
+	go func() {
+		defaultAddr := fmt.Sprintf("0.0.0.0:%d", nm.config.Discover.Port)
+		dhtAddr, err := NewExternalTCPAddr(defaultAddr)
+		if err != nil {
+			log.Error("Could not obtain an external port for the DHT service")
+		} else {
+			dhtService, err := rendezvous.NewDhtService(dhtAddr.String(), serviceId)
+			if err != nil {
+				log.Error("Could not start the DHT service")
+			} else {
+				dhtService.AnnounceAndDiscover(membersExternalAddr.String(), discovered)
+			}
+		}
+	}()
 
 	return nil
 }
@@ -106,13 +117,14 @@ func (d *NodesManager) Stop() (err error) {
 	return nil
 }
 
-func (nm *NodesManager) Join(nodes []string) {
+func (nm *NodesManager) Join(nodes []string) error {
 	// Join an existing cluster by specifying at least one known member.
 	n, err := nm.members.Join(nodes)
 	if err != nil {
-		log.Fatalf("Failed to join cluster: " + err.Error())
+		return errors.New("Failed to join cluster: " + err.Error())
 	} else {
 		log.Info("Joined %d peers", n)
+		return nil
 	}
 }
 
@@ -146,6 +158,7 @@ func (this *NodesManager) WaitForNodes() error {
 
 // Sends some data to some other node
 func (this *NodesManager) SendTo(packet []byte, node *Node) error {
+	log.Debug("Sending packet to %v", node)
 	addr := net.IPAddr{node.Addr, ""}
 	err := this.members.SendTo(&addr, packet)
 	if err != nil {
@@ -158,6 +171,7 @@ func (this *NodesManager) SendTo(packet []byte, node *Node) error {
 // when broadcasting an alive message. It's length is limited to
 // the given byte size. This metadata is available in the Node structure.
 func (p *NodesManager) NodeMeta(limit int) []byte {
+	log.Debug("Current node meta-data requested")
 	res := make([]byte, 0)
 	return res
 }
@@ -167,7 +181,9 @@ func (p *NodesManager) NodeMeta(limit int) []byte {
 // so would block the entire UDP packet receive loop. Additionally, the byte
 // slice may be modified after the call returns, so it should be copied if needed.
 func (p *NodesManager) NotifyMsg([]byte) {
-
+	// TODO: send the message to the TAP device... maybe we should enqueue it
+	// TODO: and then a worker could perform the real delivery
+	log.Debug("User data received")
 }
 
 // GetBroadcasts is called when user data messages can be broadcast.
@@ -176,6 +192,7 @@ func (p *NodesManager) NotifyMsg([]byte) {
 // The total byte size of the resulting data to send must not exceed
 // the limit.
 func (p *NodesManager) GetBroadcasts(overhead, limit int) [][]byte {
+	log.Debug("Use data can be broadcasted: collecting!")
 	res := make([][]byte, 0)
 	return res
 }
@@ -185,6 +202,7 @@ func (p *NodesManager) GetBroadcasts(overhead, limit int) [][]byte {
 // data can be sent here. See MergeRemoteState as well. The `join`
 // boolean indicates this is for a join instead of a push/pull.
 func (p *NodesManager) LocalState(join bool) []byte {
+	log.Debug("Gathering local state for TCP Push/Pull")
 	res := make([]byte, 0)
 	return res
 }
@@ -194,5 +212,6 @@ func (p *NodesManager) LocalState(join bool) []byte {
 // remote side's LocalState call. The 'join'
 // boolean indicates this is for a join instead of a push/pull.
 func (p *NodesManager) MergeRemoteState(buf []byte, join bool) {
+	log.Debug("Merging remote state")
 
 }

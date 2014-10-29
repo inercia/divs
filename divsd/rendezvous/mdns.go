@@ -15,75 +15,76 @@ type MdnsService struct {
 	id            string
 	fullId        string
 	discoveryAddr string
-	server      *mdns.Server
+	server        *mdns.Server
 	entriesCh     chan *mdns.ServiceEntry
 	announced     bool
 	discovering   bool
 }
 
+// Create a new mDNS rendezvous service
 func NewMdnsService(discoveryAddr string, id string) (*MdnsService, error) {
 	m := MdnsService{
-		id:          id,
-		fullId:      fmt.Sprintf("_%s._%s", id, PROTOCOL),
-		discoveryAddr:  discoveryAddr,
-		entriesCh:   make(chan *mdns.ServiceEntry, 4),
-		announced:   false,
-		discovering: false,
+		id:          		id,
+		fullId:      		fmt.Sprintf("_%s._%s", id, PROTOCOL),
+		discoveryAddr:  	discoveryAddr,
+		entriesCh:   		make(chan *mdns.ServiceEntry, 4),
+		announced:   		false,
+		discovering: 		false,
 	}
 	return &m, nil
 }
 
-func (this *MdnsService) Announce(external string) error {
+// Announce the service in the network
+func (srv *MdnsService) AnnounceAndDiscover(external string, discoveries chan string) error {
 	// Setup our service export
 	host, _ := os.Hostname()
 	_, portStr, _ := net.SplitHostPort(external)
 	port, _ := strconv.Atoi(portStr)
 
+	log.Info("Announcing with mDNS service %s at %s:%d", srv.fullId, host, port)
 	service := &mdns.MDNSService{
 		Instance: host,
-		Service:  this.fullId,
+		Service:  srv.fullId,
 		Port:     port,
-		Info:     "My awesome service",
+		Info:     "DiVS service",
 	}
 	service.Init()
 
 	// Create the mDNS server, defer shutdown
 	var err error
-	this.server, err = mdns.NewServer(&mdns.Config{Zone: service})
+	srv.server, err = mdns.NewServer(&mdns.Config{Zone: service})
 	if err != nil {
 		return err
 	} else {
-		this.announced = true
+		srv.announced = true
 	}
 
-	return nil
-}
-
-func (this *MdnsService) Discover(discoveries chan string) error {
 	go func() {
 		for {
-			entry, receiving := <-this.entriesCh
+			entry, receiving := <-srv.entriesCh
 			if !receiving {
 				break
 			}
-			fmt.Printf("Got new entry: %v\n", entry)
+			log.Debug("Got new peer: %v", entry)
 			discoveries <- net.JoinHostPort(entry.Host, strconv.Itoa(entry.Port))
 		}
 	}()
 
-	mdns.Lookup(this.fullId, this.entriesCh)
-	this.discovering = true
+	log.Info("Starting LAN lookup with mDNS for service %s", srv.fullId)
+	mdns.Lookup(srv.fullId, srv.entriesCh)
+	srv.discovering = true
+
 	return nil
 }
 
-func (this *MdnsService) Leave() error {
-	if this.announced {
-		this.server.Shutdown()
-		this.announced = false
+func (srv *MdnsService) Leave() error {
+	if srv.announced {
+		srv.server.Shutdown()
+		srv.announced = false
 	}
-	if this.discovering {
-		close(this.entriesCh)
-		this.discovering = false
+	if srv.discovering {
+		close(srv.entriesCh)
+		srv.discovering = false
 	}
 
 	return nil
