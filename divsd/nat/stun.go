@@ -4,11 +4,8 @@ import (
 	"net"
 	"github.com/ccding/go-stun/stun"
 	"fmt"
-	logging "github.com/op/go-logging"
 	"strconv"
 )
-
-var log = logging.MustGetLogger("divs")
 
 // could not obtain a NAT mapping with STUN
 var ERR_COULD_NOT_OBTAIN_STUN = fmt.Errorf("Could not obtain a valid IP/port with STUN")

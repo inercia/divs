@@ -3,7 +3,6 @@ package divsd
 // The top configuration structure for the DiVS daemon
 type Config struct {
 	Global   globalConfig
-	Raft     raftConfig
 	Discover discoverConfig
 	Mdns     mdnsConfig
 	Tun      tunConfig
@@ -15,13 +14,6 @@ type globalConfig struct {
 	Host   string
 	Port   int
 	Serial UUID
-}
-
-// RAFT
-type raftConfig struct {
-	DataPath string
-	IsLeader bool
-	Leader   string
 }
 
 // MDNS discovery

@@ -46,48 +46,20 @@ features like application-level messages, broadcasting of application-level
 information, encryption, compression: we make use of these features for sending
 virtual traffic between nodes.
 
-DiVS maintains a _distributed database_ of MAC addresses, mapping MAC addresses to
-nodes in the virtual network. This allows us to use the TAP device for traffic
-to/from multiple endpoints in the same node (for example, when using virtual
-machines in the physical machine). When a DiVS node detects some packets being
-written to the local TAP device with an unknown MAC address, it updates the
-distributed database, pointing other nodes to where they should send traffic
-for that MAC.
+DiVS maintains a eventually consistent _distributed database_ of MAC addresses,
+mapping MAC addresses to nodes in the virtual network. This allows us to use the
+TAP device for traffic to/from multiple endpoints in the same node (for example,
+when using virtual machines in the physical machine). When a DiVS node `N` detects
+a packet in the local TAP device with an unknown MAC address `M`, it updates the
+distributed database setting `M -> N`. When other nodes whant to send traffic to
+the MAC `M` they will encapsulate the packet and send it to the node `N`.
 
 ![MAC DiVS mapping](https://raw.githubusercontent.com/inercia/divs/master/docs/images/macs-table-overview.png)
 
-This feature wouldn't be strictly necessary as MAC to DiVS node information could
-be spread in the network with the help of `memberlist`'s gossip messages, but
-a distributed database could
-
-  * provide a higher consistency level for the information stored (for example,
-  DiVS nodes could respond to ARP requests in the local TAP device with always
-  up-to-date information).
-  * constitute an important stepping stone for new features, enhancing the database
-  schema with more information where we could implement 
-      - intelligent multicast routing (ie, [IGMP snooping](http://en.wikipedia.org/wiki/IGMP_snooping),
-      where we keep a list of *who-is-subscribed-to-what multicast group*)
-      - layer 3 routing, where the database could be always consistent even when
-      routing information could be modified in parallel. 
-
-I plan to make use of the [goraft](https://github.com/goraft/raft) library for
-implementing the distributed database. Raft is a distributed consensus protocol
-similar to Paxos but (it is supposed to be) understandable. Raft keeps a
-distributed log of commands where all the nodes have the same view of the order
-of events. From the Raft web page:
-
-> To maintain state, a log of commands is maintained. Each command makes a change
-> to the state of the server and the command is deterministic. By
-> ensuring that this log is replicated identically between all the nodes
-> in the cluster we can replicate the state at any point in time in the log
-> by running each command sequentially.
-
-So we could use commands like *"this MAC is connected at this DiVS node"* or, in
-the future, routing commands like *"traffic for 192.168.9.0/24 goes to this
-DiVS node"*, firewall rules, connection tracking and NAT information, etc. In a
-distributed database based in Raft, all these commands would always
-have the same order in all nodes, assuring that we would never enter a situation
-where two DiVS nodes could be doing contradictory actions.
+The distributed database update is performed by using the gossip mechanism provided 
+by `memberlist`. Nodes can add local information like these MAC to Node mappings
+and `memberlist` will piggyback that information in the cluster management
+messages. 
 
 ## Status
 
@@ -97,10 +69,11 @@ This is a bird's–eye view of the roadmap I have in mind:
 + [ ] implement the distributed database for MAC addesses
 + [ ] parse packets comming from the TAP device
 + [ ] send the ethernet packets as UDP packets with the memberlist Send* facility.
-+ [ ] remove the raft transport over HTTP: move it to the memberlist transport
 + [ ] implement some kind of challenge-response in the initial connection between
-      nodes (`memberlist` does not have anythning like this, it just relies in
+      nodes (`memberlist` does not have anything like this, it just relies in
       encryption and both parties sharing the same key)
++ [ ] modify `memberlist` for being more NAT-friendly.
+      
 
 ## Installation
 

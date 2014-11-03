@@ -2,15 +2,23 @@ package divsd
 
 import (
 	"fmt"
-	"github.com/inercia/water/tuntap"
 	"net"
 	"os"
 	"sync"
+
+	"code.google.com/p/gopacket"
+	"code.google.com/p/gopacket/layers"
+
+	"github.com/inercia/water/tuntap"
 )
+
+// the buffer length used for reading a packet from the TAP device
+const TAP_BUFFER_LEN = 9000
 
 type DevManager struct {
 	numWorkers       int
 	tun             *tuntap.TunTap
+	nodesManager    *NodesManager
 	packetsChan      chan []byte
 	wg              *sync.WaitGroup
 	mutex            sync.RWMutex
@@ -49,7 +57,13 @@ func NewDevManager(config *Config) (d *DevManager, err error) {
 	return d, nil
 }
 
-// Start the TAP device and start reading from it
+// Set the nodes manager
+func (dman *DevManager) SetNodesManager(nm *NodesManager) error {
+	dman.nodesManager = nm
+	return nil
+}
+
+	// Start the TAP device and start reading from it
 func (dman *DevManager) Start() (err error) {
 	log.Info("Initializing tap device...\n")
 
@@ -71,7 +85,6 @@ func (dman *DevManager) Start() (err error) {
 	}
 
 	go dman.devReader()
-
 	return nil
 }
 
@@ -83,19 +96,21 @@ func (dman *DevManager) Stop() {
 	dman.wg.Wait()
 }
 
+// the device reader
 func (dman *DevManager) devReader() {
 	// Processing all packets by spreading them to `free` goroutines
 	log.Debug("Starting reading from TAP device...")
 	for {
-		packet := make([]byte, 1500)
+		// TODO: use a sync.Pool for the buffers, so we do not generate so much garbage...
+
+		packet := make([]byte, TAP_BUFFER_LEN)
 		_, err := dman.tun.Read(packet)
 		if err != nil {
 			log.Info("Error reading from TAP device: %s", err)
 			break
 		} else {
 			log.Debug("New packet read from TAP device")
-			// TODO: split/parse... the packet and send it to the righ worker
-			dman.packetsChan <- packet
+			dman.packetsChan <- packet // handoff the packet to a packets processor
 		}
 	}
 }
@@ -106,7 +121,20 @@ func (dman *DevManager) packetProcessor() {
 	defer dman.wg.Done()
 
 	for packet := range dman.packetsChan {
-		// TODO: do the job here
 		log.Info("Read %d", len(packet))
+		packet := gopacket.NewPacket(packet, layers.LayerTypeEthernet, gopacket.Default)
+
+		// Get the Ethernet layer from this packet
+		if ethLayer := packet.Layer(layers.LayerTypeEthernet); ethLayer != nil {
+			eth, _ := ethLayer.(*layers.Ethernet)
+			log.Debug("Ethernet: src:%s, dst:%s\n", eth.SrcMAC, eth.DstMAC)
+
+			// TODO: we should parse the packet and do interesting things like
+			//       - answer ARP requests
+			//       - do some IGMP snooping...
+
+			// pass the parsed packet to the nodes manager so it send it to the right destination
+			dman.nodesManager.SendPacket(&EthernetPacket{*eth})
+		}
 	}
 }

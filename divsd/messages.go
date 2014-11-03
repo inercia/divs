@@ -3,6 +3,7 @@ package divsd
 import (
 	"bytes"
 	"github.com/ugorji/go/codec"
+	"code.google.com/p/gopacket/layers"
 )
 
 // messageType is an integer ID of a type of message that can be received
@@ -11,62 +12,43 @@ type messageType uint8
 
 // The list of available message types.
 const (
-	MSG_DB_REQ messageType = iota
-	MSG_DB_VAL
+	MSG_DIVS_PKG_ETH messageType = iota
 	MSG_LAST
 )
 
-/////////////////////////////////////////////////////////////////////////
-
-// A database request message
-type DbReq struct {
-	Name string
-}
-
-func NewDbReqFromBuffer(in []byte) *DbReq {
-	var dbReq DbReq
-	if err := decode(in, &dbReq); err != nil {
-		log.Fatalf("unexpected err %s", err)
-	}
-	return &dbReq
-}
-
-func (dbReq *DbReq) ToBuffer() []byte {
-	buf, err := encode(MSG_DB_REQ, dbReq)
-	if err != nil {
-		log.Fatalf("unexpected err %s", err)
-	}
-	return buf.Bytes()
+type Encodeable interface {
+	Encode() (data []byte, err error)
 }
 
 /////////////////////////////////////////////////////////////////////////
 
-// A database value message
-type DbVal struct {
-	Name  string
-	Value string
+// An encapsulated ethernet packet
+type EthernetPacket struct {
+	layers.Ethernet
 }
 
-func NewDbValFromBuffer(in []byte) *DbVal {
-	var dbVal DbVal
-	if err := decode(in, &dbVal); err != nil {
+// Decode a ethernet packet from a buffer
+func NewEthernetPacketFromBuffer(in []byte) *EthernetPacket {
+	var pkt EthernetPacket
+	if err := decodeMsg(in, &pkt); err != nil {
 		log.Fatalf("unexpected err %s", err)
 	}
-	return &dbVal
+	return &pkt
 }
 
-func (dbVal *DbVal) ToBuffer() []byte {
-	buf, err := encode(MSG_DB_VAL, dbVal)
+// Encode a ethernet packet to a ready-to-send buffer
+func (pkt EthernetPacket) Encode() (data []byte, err error) {
+	buf, err := encodeMsg(MSG_DIVS_PKG_ETH, pkt)
 	if err != nil {
 		log.Fatalf("unexpected err %s", err)
 	}
-	return buf.Bytes()
+	return buf.Bytes(), nil
 }
 
 /////////////////////////////////////////////////////////////////////////
 
 // Encode writes an encoded object to a new bytes buffer
-func encode(msgType messageType, in interface{}) (*bytes.Buffer, error) {
+func encodeMsg(msgType messageType, in interface{}) (*bytes.Buffer, error) {
 	buf := bytes.NewBuffer(nil)
 	buf.WriteByte(uint8(msgType))
 	hd := codec.MsgpackHandle{}
@@ -76,9 +58,26 @@ func encode(msgType messageType, in interface{}) (*bytes.Buffer, error) {
 }
 
 // Decode reverses the encode operation on a byte slice input
-func decode(buf []byte, out interface{}) error {
+// Note that encode() prepends one byte to the message for identifying
+// the message type, you you should not provide the `res []bytes` returned
+// by `encode()` but res[1:] instead...
+func decodeMsg(buf []byte, out interface{}) error {
 	r := bytes.NewReader(buf)
 	hd := codec.MsgpackHandle{}
 	dec := codec.NewDecoder(r, &hd)
 	return dec.Decode(out)
+}
+
+// Peek the first bytes two bytes of a buffer for identifying the
+// message type
+func peekMsgType(buf []byte) (messageType, error) {
+	var msgType messageType = messageType(buf[0])
+	return msgType, nil
+}
+
+// Get the message type and a buffer with the encoded message
+// You can then apply `decode()` in the buffer result
+func getTypeAndEncodedMsg(buf []byte) (messageType, []byte, error) {
+	msgType, err := peekMsgType(buf)
+	return msgType, buf[1:], err
 }

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/hashicorp/memberlist"
+	"bytes"
 )
 
 // maybe we should use this in the future:
@@ -14,18 +15,18 @@ import (
 // maybe we should send with ratelimit
 // https://github.com/juju/ratelimit
 
+// the send queue length used for sending to a node
+const SEND_QUEUE_LEN = 100
+
 type Node struct {
 	*memberlist.Node
-	*net.UDPAddr
 
-	memberlist *memberlist.Memberlist
-
-	recvChan chan []byte
-	sendChan chan []byte
+	manager  *NodesManager
+	sendChan chan Encodeable
 }
 
 // @param address: a string in the form IP:port
-func NewNode(address string, ml *memberlist.Memberlist) (*Node, error) {
+func NewNode(address string, nm *NodesManager) (*Node, error) {
 	host, port, err := net.SplitHostPort(address)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse peer address: %v", err)
@@ -34,48 +35,65 @@ func NewNode(address string, ml *memberlist.Memberlist) (*Node, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not parse port number from address")
 	}
-	udpAddr, err := net.ResolveUDPAddr("udp", address)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse address %s", address)
-	}
 
-	// TODO
-
-	p := Node{
+	n := Node{
 		Node: &memberlist.Node{
 			Addr: net.ParseIP(host),
 			Port: uint16(portI),
 		},
-		UDPAddr : udpAddr,
-		sendChan: make(chan []byte),
-		recvChan: make(chan []byte),
-		memberlist: ml,
+		sendChan: make(chan Encodeable, SEND_QUEUE_LEN),
+		manager: nm,
 	}
 
-	// create the two workers that will receive/send data
-	go p.sendWorker(p.sendChan)
+	// create a worker for sending data
+	go n.sendWorker()
 
-	return &p, nil
+	return &n, nil
 }
 
-/////////////////////////////////////////////////////////////////////////////
-// send worker
-/////////////////////////////////////////////////////////////////////////////
+// Send some serializable object to this node
+// Data is enqueued in a queue for sending
+// This method will only be invoked from the NodesManager
+func (node *Node) Send(data Encodeable) error {
+	log.Debug("Enqueuing data for sending to %v", node)
+	node.sendChan <- data
+	return nil
+}
 
-// start a goroutine that reads from a peer
-func (p *Node) sendWorker(sendChan chan []byte) {
-	// now you can get a connection from the pool, if there is no connection
-	// available it will create a new one via the factory function.
-	log.Info("Starting sender worker for %s")
-	for {
-		data, available := <-sendChan
-		if !available {
-			break
+// Close the node, releasing all the resources associated with it
+func (node *Node) Close() error {
+	log.Debug("Closing node %s", node)
+	close(node.sendChan)
+	return nil
+}
+
+// Start a coroutine that send to this node
+func (node *Node) sendWorker() {
+	ipAddr, err := net.ResolveIPAddr("ip", node.Addr.String())
+	if err != nil {
+		log.Debug("Could not parse IP address %v", node.Addr)
+	}
+
+	log.Info("Starting sender worker for %s", ipAddr)
+	for data := range node.sendChan {
+		marshaled, err := data.Encode()
+		if err != nil {
+			log.Debug("Error encoding data for %s: %s", node.Addr, err)
 		}
-		if err := p.memberlist.SendTo(p, data); err != nil {
-			log.Error("ERROR: when sending data to %s", p.Name)
-		} else {
-			log.Debug("Sent %d bytes to %s", len(data), p.Name)
+		err = node.manager.members.SendTo(ipAddr, marshaled)
+		if err != nil {
+			log.Debug("Error sending to %s: %s", node.Addr, err)
 		}
 	}
+}
+
+// Compare to another node, returning "true" if they are equal
+func (node Node) Equal(other *memberlist.Node) bool {
+	if bytes.Compare(node.Node.Addr, other.Addr) != 0 {
+		return false
+	}
+	if node.Node.Port != other.Port {
+		return false
+	}
+	return true
 }
