@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/armon/mdns"
+	"github.com/hashicorp/mdns"
 )
 
 const PROTOCOL = "tcp"
@@ -46,7 +46,6 @@ func (srv *MdnsService) AnnounceAndDiscover(external string, discoveries chan st
 		Instance: host,
 		Service:  srv.fullId,
 		Port:     port,
-		//Info:     "DiVS service",
 	}
 	service.Init()
 
