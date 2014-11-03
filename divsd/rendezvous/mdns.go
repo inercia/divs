@@ -46,7 +46,7 @@ func (srv *MdnsService) AnnounceAndDiscover(external string, discoveries chan st
 		Instance: host,
 		Service:  srv.fullId,
 		Port:     port,
-		Info:     "DiVS service",
+		//Info:     "DiVS service",
 	}
 	service.Init()
 
