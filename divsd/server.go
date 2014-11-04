@@ -47,6 +47,9 @@ func (s *Server) ListenAndServe() error {
 	// obtain a externally-reachable IP/port for memberlist management
 	defaultExternalAddr := fmt.Sprintf("%s:%d", s.config.Global.Host, s.config.Global.Port)
 	membersExternalAddr, err := NewExternalUDPAddr(defaultExternalAddr)
+	if membersExternalAddr.Port == 0 {
+		log.Fatalf("FATAL: external port obtained is 0")
+	}
 
 	// start the peers manager
 	if err = s.nodesManager.Start(membersExternalAddr); err != nil {
