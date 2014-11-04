@@ -35,6 +35,7 @@ func init() {
 
 // dirty trick for creating a logger redirecter
 type loggerW bool
+
 var loggerWritter loggerW
 
 // Implement the writer method for the log, so we can set it in the memberlist config
