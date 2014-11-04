@@ -13,12 +13,13 @@ type globalConfig struct {
 	Name   string
 	Host   string
 	Port   int
+	BindIP string
 	Serial UUID
 }
 
 // MDNS discovery
 type mdnsConfig struct {
-	Port   int
+	Port int
 }
 
 // DHT discovery
