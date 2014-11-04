@@ -3,86 +3,108 @@ package rendezvous
 import (
 	"fmt"
 	"net"
-	"os"
 	"strconv"
 
-	"github.com/hashicorp/mdns"
+	"github.com/oleksandr/bonjour"
 )
 
 const PROTOCOL = "tcp"
 
+
+////////////////////////////////////////////////////////////////////////////////
+
 type MdnsService struct {
-	id            string
-	fullId        string
-	discoveryAddr string
-	server        *mdns.Server
-	entriesCh     chan *mdns.ServiceEntry
-	announced     bool
-	discovering   bool
+	id               string
+	fullId           string
+	resolver         *bonjour.Resolver
+	registerStopChan chan<- bool
+	discoveryAddr    string
+	discoveriesChan  chan *bonjour.ServiceEntry
+	discovering      bool
+	announced        bool
 }
 
 // Create a new mDNS rendezvous service
 func NewMdnsService(discoveryAddr string, id string) (*MdnsService, error) {
+	resolver, err := bonjour.NewResolver(nil)
+	if err != nil {
+		return nil, err
+	}
+
 	m := MdnsService{
-		id:          		id,
-		fullId:      		fmt.Sprintf("_%s._%s", id, PROTOCOL),
-		discoveryAddr:  	discoveryAddr,
-		entriesCh:   		make(chan *mdns.ServiceEntry, 4),
-		announced:   		false,
-		discovering: 		false,
+		id:              id,
+		fullId:          fmt.Sprintf("_%s._%s", id, PROTOCOL),
+		resolver:        resolver,
+		discoveryAddr:   discoveryAddr,
+		discoveriesChan: make(chan *bonjour.ServiceEntry),
+		announced:       false,
+		discovering:     false,
 	}
 	return &m, nil
 }
 
 // Announce the service in the network
-func (srv *MdnsService) AnnounceAndDiscover(external string, discoveries chan string) error {
+func (srv *MdnsService) AnnounceAndDiscover(external string, discoveries chan string, localIPs map[string]bool) error {
 	// Setup our service export
-	host, _ := os.Hostname()
 	_, portStr, _ := net.SplitHostPort(external)
 	port, _ := strconv.Atoi(portStr)
 
-	log.Info("Announcing with mDNS service %s at %s:%d", srv.fullId, host, port)
-	service := &mdns.MDNSService{
-		Instance: host,
-		Service:  srv.fullId,
-		Port:     port,
-	}
-	service.Init()
-
-	// Create the mDNS server, defer shutdown
-	var err error
-	srv.server, err = mdns.NewServer(&mdns.Config{Zone: service})
+	// Run registration
+	log.Info("Announcing with mDNS service %s at :%d", srv.fullId, port)
+	stopChan, err := bonjour.Register("The incredible foo service",
+		srv.fullId, "", port,
+		[]string{"txtv=1", "app=divs"}, nil)
 	if err != nil {
+		log.Error("Could not register with mDNS: %s", err)
 		return err
 	} else {
 		srv.announced = true
+		srv.registerStopChan = stopChan
 	}
 
-	go func() {
-		for {
-			entry, receiving := <-srv.entriesCh
-			if !receiving {
-				break
+	// Create the mDNS server, defer shutdown
+	go func(results chan *bonjour.ServiceEntry) {
+		for entry := range results {
+			var entryHostName string
+			if entry.AddrIPv4 == nil || entry.AddrIPv4.IsUnspecified() {
+				entryHostName = entry.HostName
+			} else {
+				entryHostName = entry.AddrIPv4.String()
 			}
-			log.Debug("Got new peer: %v", entry)
-			discoveries <- net.JoinHostPort(entry.Host, strconv.Itoa(entry.Port))
+
+			entryAddr := fmt.Sprintf("%s:%d", entryHostName, entry.Port)
+			log.Debug("Located a peer with mDNS: %s", entryAddr)
+
+			// check if we have discovered ourselves...
+			_, isLocalIp := localIPs[entryHostName]
+			if isLocalIp && entry.Port == port {
+				log.Debug("... skipped: it was this node (%s:%d)", entryHostName, port)
+			} else {
+				discoveries <- entryAddr
+			}
 		}
-	}()
+	}(srv.discoveriesChan)
 
 	log.Info("Starting LAN lookup with mDNS for service %s", srv.fullId)
-	mdns.Lookup(srv.fullId, srv.entriesCh)
-	srv.discovering = true
+	err = srv.resolver.Browse(srv.fullId, "local.", srv.discoveriesChan)
+	if err != nil {
+		log.Error("Could not start mDNS discovery: %s", err)
+		return err
+	} else {
+		srv.discovering = true
+	}
 
 	return nil
 }
 
+// Stop announcing the service and stop discovering peers...
 func (srv *MdnsService) Leave() error {
 	if srv.announced {
-		srv.server.Shutdown()
+		srv.registerStopChan <- true
 		srv.announced = false
 	}
 	if srv.discovering {
-		close(srv.entriesCh)
+		close(srv.discoveriesChan)
 		srv.discovering = false
 	}
 

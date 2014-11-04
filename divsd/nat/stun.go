@@ -1,9 +1,9 @@
 package nat
 
 import (
-	"net"
-	"github.com/ccding/go-stun/stun"
 	"fmt"
+	"github.com/ccding/go-stun/stun"
+	"net"
 	"strconv"
 )
 
@@ -34,7 +34,6 @@ func GetStun(defaultIp net.IP, defaultPort int) (net.IP, int, error) {
 		return net.IP{}, 0, ERR_COULD_NOT_OBTAIN_STUN
 	}
 
-	log.Debug("External endpoint calculated %s", stunHost.TransportAddr())
 	var t string
 	switch nat {
 	case stun.NAT_ERROR:
@@ -44,19 +43,20 @@ func GetStun(defaultIp net.IP, defaultPort int) (net.IP, int, error) {
 	case stun.NAT_BLOCKED:
 		t = "UDP is blocked"
 	case stun.NAT_FULL:
-		t = "Full cone NAT"
+		t = "Full cone"
 	case stun.NAT_SYMETRIC:
-		t = "symetric NAT"
+		t = "symetric"
 	case stun.NAT_RESTRICTED:
-		t = "restricted NAT"
+		t = "restricted"
 	case stun.NAT_PORT_RESTRICTED:
-		t = "port restricted NAT"
+		t = "port restricted"
 	case stun.NAT_NONE:
-		t = "not behind a NAT"
+		t = "not behind a"
 	case stun.NAT_SYMETRIC_UDP_FIREWALL:
 		t = "symetric UDP firewall"
 	}
-	log.Debug("NAT type: %s.\n", t)
 
+	log.Debug("STUN result: external IP:port: %s (NAT type: %s)",
+		stunHost.TransportAddr(), t)
 	return net.ParseIP(stunHost.Ip()), int(stunHost.Port()), nil
 }

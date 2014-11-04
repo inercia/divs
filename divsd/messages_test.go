@@ -3,8 +3,8 @@ package divsd
 import "testing"
 import (
 	"bytes"
-	"net"
 	"code.google.com/p/gopacket/layers"
+	"net"
 )
 
 // A general test for the encoding/decoding functions
@@ -29,7 +29,7 @@ func TestEncodeDecode(t *testing.T) {
 
 	var out ping
 	err = decodeMsg(encodedMsg, &out)
-	if  err != nil {
+	if err != nil {
 		t.Fatalf("unexpected err: %s", err)
 	}
 	if msg.SeqNo != out.SeqNo {
@@ -44,10 +44,10 @@ func TestPkgEtherSerialization(t *testing.T) {
 			BaseLayer: layers.BaseLayer{
 				Payload: []byte("0123456789"),
 			},
-			SrcMAC: net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-			DstMAC: net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			SrcMAC:       net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			DstMAC:       net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			EthernetType: layers.EthernetTypeIPv4,
-			Length: 10,
+			Length:       10,
 		},
 	}
 
@@ -65,10 +65,10 @@ func BenchmarkDbReqSerialization(b *testing.B) {
 			BaseLayer: layers.BaseLayer{
 				Payload: []byte("0123456789"),
 			},
-			SrcMAC: net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
-			DstMAC: net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			SrcMAC:       net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+			DstMAC:       net.HardwareAddr{0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
 			EthernetType: layers.EthernetTypeIPv4,
-			Length: 10,
+			Length:       10,
 		},
 	}
 

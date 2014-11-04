@@ -2,57 +2,36 @@ package divsd
 
 import (
 	"fmt"
-	"net"
 	"os"
 	"sync"
 
 	"code.google.com/p/gopacket"
 	"code.google.com/p/gopacket/layers"
-
 	"github.com/inercia/water/tuntap"
 )
 
 // the buffer length used for reading a packet from the TAP device
 const TAP_BUFFER_LEN = 9000
 
-type DevManager struct {
-	numWorkers       int
-	tun             *tuntap.TunTap
-	nodesManager    *NodesManager
-	packetsChan      chan []byte
-	wg              *sync.WaitGroup
-	mutex            sync.RWMutex
-}
-
-// Get all the local addresses
-func GetLocalAddresses() {
-	list, err := net.Interfaces()
-	if err != nil {
-		panic(err)
-	}
-
-	for i, iface := range list {
-		log.Debug("%d name=%s %v", i, iface.Name, iface)
-		addrs, err := iface.Addrs()
-		if err != nil {
-			panic(err)
-		}
-		for j, addr := range addrs {
-			fmt.Printf(" %d %v\n", j, addr)
-		}
-	}
-}
-
 /////////////////////////////////////////////////////////////////////////////
+
+type DevManager struct {
+	numWorkers   int
+	tun          *tuntap.TunTap
+	nodesManager *NodesManager
+	packetsChan  chan []byte
+	wg           *sync.WaitGroup
+	mutex        sync.RWMutex
+}
 
 // Create a new devices manager, in practice a TAP device manager
 // This manager will be responsible for reading from the device and sending
 // data to the right peers
 func NewDevManager(config *Config) (d *DevManager, err error) {
 	d = &DevManager{
-		numWorkers    : config.Tun.NumReaders,
-		packetsChan   : make(chan []byte),
-		wg            : new(sync.WaitGroup),
+		numWorkers:  config.Tun.NumReaders,
+		packetsChan: make(chan []byte),
+		wg:          new(sync.WaitGroup),
 	}
 	return d, nil
 }
@@ -63,7 +42,7 @@ func (dman *DevManager) SetNodesManager(nm *NodesManager) error {
 	return nil
 }
 
-	// Start the TAP device and start reading from it
+// Start the TAP device and start reading from it
 func (dman *DevManager) Start() (err error) {
 	log.Info("Initializing tap device...\n")
 

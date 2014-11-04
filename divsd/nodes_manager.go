@@ -1,13 +1,19 @@
 package divsd
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"time"
-	"errors"
 
 	"github.com/hashicorp/memberlist"
 )
+
+// joined channel length
+const JOINED_CHAN_LEN = 10
+
+// discovered channel length
+const DISCOVERED_CHAN_LEN = 10
 
 // Unknown destination mac
 var ERR_UNKNOWN_DST_MAC = fmt.Errorf("Unknown destination mac")
@@ -16,27 +22,26 @@ var ERR_UNKNOWN_DST_MAC = fmt.Errorf("Unknown destination mac")
 // - establishing and keeping connections to peers
 // - sending/receiving data to/from peers
 type NodesManager struct {
+	config         *Config
+	devManager     *DevManager
+	members        *memberlist.Memberlist
+	membersExtAddr net.UDPAddr
 
-	config            *Config
-	devManager        *DevManager
-	members           *memberlist.Memberlist
-	membersExtAddr    net.UDPAddr
+	discoveredChan chan string // we send to this channel possible, discovered peers
+	joinedChan     chan string // we send to this channel new, joined peers
 
-	discoveredChan    chan string // we send to this channel possible, discovered peers
-	joinedChan        chan string // we send to this channel new, joined peers
-
-    macsToNodes       map[string]*Node
+	macsToNodes map[string]*Node
 }
 
 // Create a new peers manager
 func NewNodesManager(config *Config) (*NodesManager, error) {
 	log.Debug("Creating new nodes manager")
 	d := NodesManager{
-		config:        	config,
-		joinedChan:    	make(chan string),
-		discoveredChan: make(chan string),
-		macsToNodes:   	make(map[string]*Node),
-}
+		config:         config,
+		joinedChan:     make(chan string, JOINED_CHAN_LEN),
+		discoveredChan: make(chan string, DISCOVERED_CHAN_LEN),
+		macsToNodes:    make(map[string]*Node),
+	}
 	return &d, nil
 }
 
@@ -56,7 +61,7 @@ func (nm *NodesManager) Start(membersExtAddr net.UDPAddr) (err error) {
 	log.Debug("Memberlist external IP/Port: %s:%d", extIp, extPort)
 
 	membersConfig := memberlist.DefaultWANConfig()
-	membersConfig.BindAddr = extIp
+	membersConfig.BindAddr = nm.config.Global.BindIP
 	membersConfig.BindPort = extPort
 	membersConfig.Delegate = nm
 	membersConfig.Events = nm
@@ -111,30 +116,25 @@ func (nm *NodesManager) Join(nodes []string) error {
 
 // Wait some time for some peers
 func (nm *NodesManager) WaitForNodesTime(seconds time.Duration) (err error) {
-	if nm.members.NumMembers() > 0 {
-		return nil
-	} else {
+	if nm.members.NumMembers() == 0 {
 		log.Info("Waiting for %d seconds for peers to join...", seconds)
 		select {
 		case <-nm.joinedChan:
-			err = nil
 			break
 		case <-time.After(seconds * time.Second):
-			err = fmt.Errorf("no valid peers found in %d seconds", seconds)
+			return ERR_TIMEOUT_PEERS
 		}
-		return err
 	}
+	return nil
 }
 
 // Wait for some peers
 func (this *NodesManager) WaitForNodes() error {
-	if this.members.NumMembers() > 0 {
-		return nil
-	} else {
+	if this.members.NumMembers() == 0 {
 		log.Debug("Waiting for a new peer...")
 		<-this.joinedChan
-		return nil
 	}
+	return nil
 }
 
 // Wait for some peers
@@ -142,8 +142,9 @@ func (this *NodesManager) WaitForNodesForever() error {
 	log.Debug("Waiting for peers to be discovered...")
 	for {
 		<-this.joinedChan
-		return nil
+		log.Debug("[WaitForNodesForever] node joined")
 	}
+	return nil
 }
 
 // Sends a packet to the corresponding Node
@@ -191,7 +192,7 @@ func (nm *NodesManager) NotifyMsg(buf []byte) {
 		return
 	}
 
-	switch (messageType) {
+	switch messageType {
 	case MSG_DIVS_PKG_ETH:
 		log.Debug("Data packet received: %d bytes", len(message))
 		// TODO: send the message to the TAP device... maybe we should enqueue it
@@ -233,22 +234,23 @@ func (nm *NodesManager) LocalState(join bool) []byte {
 // remote side's LocalState call. The 'join'
 // boolean indicates this is for a join instead of a push/pull.
 func (nm *NodesManager) MergeRemoteState(buf []byte, join bool) {
-	log.Debug("Merging remote state")
+	log.Debug("[MergeRemoteState] merging remote state")
 	// TODO: merge remote state
 }
 
 // NotifyJoin is invoked when a node is detected to have joined the memberlist.
 // The Node argument must not be modified.
 func (nm *NodesManager) NotifyJoin(node *memberlist.Node) {
-	log.Debug("New node detected: %s", node)
-	nm.joinedChan <- fmt.Sprintf("%s:%d", node.Addr, node.Port)
+	newNodeAddr := fmt.Sprintf("%s:%d", node.Addr, node.Port)
+	log.Debug("[NotifyJoin] new node joined: %s", newNodeAddr)
+	nm.joinedChan <- newNodeAddr
 	// TODO: something else to do when someone else joins?
 }
 
 // NotifyLeave is invoked when a node is detected to have left.
 // The Node argument must not be modified.
 func (nm *NodesManager) NotifyLeave(node *memberlist.Node) {
-	log.Debug("Node %s has been declared as unreachable", node)
+	log.Debug("[NotifyLeave] node %s has been declared as unreachable", node)
 	// TODO: remove all the MACs for this node that has left
 	for savedMac, savedNode := range nm.macsToNodes {
 		if savedNode.Equal(node) {
@@ -261,6 +263,6 @@ func (nm *NodesManager) NotifyLeave(node *memberlist.Node) {
 // updated, usually involving the meta data. The Node argument
 // must not be modified.
 func (nm *NodesManager) NotifyUpdate(node *memberlist.Node) {
-	log.Debug("Node %s has updated", node)
+	log.Debug("[NotifyUpdate] node %s has updated", node)
 	// TODO: what should we do here?
 }

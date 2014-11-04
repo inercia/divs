@@ -5,8 +5,8 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/hashicorp/memberlist"
 	"bytes"
+	"github.com/hashicorp/memberlist"
 )
 
 // maybe we should use this in the future:
@@ -42,7 +42,7 @@ func NewNode(address string, nm *NodesManager) (*Node, error) {
 			Port: uint16(portI),
 		},
 		sendChan: make(chan Encodeable, SEND_QUEUE_LEN),
-		manager: nm,
+		manager:  nm,
 	}
 
 	// create a worker for sending data

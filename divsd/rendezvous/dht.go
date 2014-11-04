@@ -3,10 +3,10 @@ package rendezvous
 import (
 	"crypto/sha1"
 	"crypto/sha256"
-	"time"
+	"errors"
 	"net"
 	"strconv"
-	"errors"
+	"time"
 
 	"github.com/nictuku/dht"
 )
@@ -19,13 +19,12 @@ const DEFAULT_DHT_NODE = "213.239.195.138:40000"
 const DISCOVERY_MIN_PEERS = 1
 
 type DhtService struct {
-	id               string
-	ih               dht.InfoHash
-	discoveryAddr    string
+	id            string
+	ih            dht.InfoHash
+	discoveryAddr string
 
 	announcing  bool
 	discovering bool
-
 }
 
 // Create a new DHT rendezvous service
@@ -50,15 +49,15 @@ func NewDhtService(discoveryAddr string, id string) (*DhtService, error) {
 	ih := dht.InfoHash(h3[:])
 
 	d := DhtService{
-		id:                    id,
-		ih:                    ih,
-		discoveryAddr:         discoveryAddr,
+		id:            id,
+		ih:            ih,
+		discoveryAddr: discoveryAddr,
 	}
 	return &d, nil
 }
 
 // Announce the service in the network
-func (srv *DhtService) AnnounceAndDiscover(external string, discoveries chan string) error {
+func (srv *DhtService) AnnounceAndDiscover(external string, discoveries chan string, localIPs map[string]bool) error {
 	log.Info("Starting WAN lookup with DHT")
 
 	// Connect to the DHT network
@@ -78,7 +77,7 @@ func (srv *DhtService) AnnounceAndDiscover(external string, discoveries chan str
 	dhtService.AddNode(DEFAULT_DHT_NODE)
 
 	go dhtService.DoDHT()
-	go srv.peersDiscoveryWorker(dhtService, discoveries)  // obtain peers from the DHT network
+	go srv.peersDiscoveryWorker(dhtService, discoveries) // obtain peers from the DHT network
 
 	return nil
 }
@@ -94,16 +93,16 @@ func (srv *DhtService) peersDiscoveryWorker(d *dht.DHT, discoveries chan string)
 	for {
 		select {
 		case r := <-d.PeersRequestResults:
-		for _, peers := range r {
-			for _, x := range peers {
-				// A DHT peer for our infohash was found. It
-				// needs to be authenticated.
-				address := dht.DecodePeerAddress(x)
+			for _, peers := range r {
+				for _, x := range peers {
+					// A DHT peer for our infohash was found. It
+					// needs to be authenticated.
+					address := dht.DecodePeerAddress(x)
 
-				// TODO: we should do some challenge/response
-				discoveries <- address
+					// TODO: we should do some challenge/response
+					discoveries <- address
+				}
 			}
-		}
 		case <-time.After(5 * time.Second):
 			// nothing to do
 		}
@@ -111,7 +110,6 @@ func (srv *DhtService) peersDiscoveryWorker(d *dht.DHT, discoveries chan string)
 		if time.Now().Unix()-lastPeersRequestTime >= 5 {
 			// Keeps requesting for the infohash. This is a no-op if the
 			// DHT is satisfied with the number of peers it has found.
-			log.Debug("Requesting more DHT peers...")
 			d.PeersRequest(string(srv.ih), true)
 			lastPeersRequestTime = time.Now().Unix()
 		}

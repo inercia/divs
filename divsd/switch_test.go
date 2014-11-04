@@ -7,7 +7,7 @@ import (
 func TestSwitchId(t *testing.T) {
 	if testing.Short() {
 		sw := NewSwitchId()
-		if ! sw.Empty() {
+		if !sw.Empty() {
 			t.Fail()
 		}
 	}
