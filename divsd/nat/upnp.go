@@ -1,9 +1,9 @@
 package nat
 
 import (
-	"net"
-	"github.com/huin/goupnp/dcps/internetgateway1"
 	"fmt"
+	"github.com/huin/goupnp/dcps/internetgateway1"
+	"net"
 )
 
 var ERR_COULD_NOT_OBTAIN_UPNP = fmt.Errorf("Could not obtain a valid IP/port with UPNP")
@@ -16,8 +16,7 @@ func GetUpnp(defaultIp net.IP, defaultPort int) (net.IP, int, error) {
 		return net.IP{}, 0, ERR_COULD_NOT_OBTAIN_UPNP
 	}
 
-	log.Debug("Got %d errors finding UPnP servers. %d UPnP servers discovered.\n",
-		len(errors), len(clients))
+	log.Debug("%d UPnP servers discovered (%d errors)", len(clients), len(errors))
 	for i, e := range errors {
 		log.Error("Error finding server #%d: %v\n", i+1, e)
 	}

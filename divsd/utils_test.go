@@ -1,6 +1,5 @@
 package divsd
 
-
 import "testing"
 
 // A global test for the encoding/decoding functions
