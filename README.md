@@ -66,14 +66,18 @@ messages.
 I'm currently going forward in the basic features of the distributed switch.
 This is a bird's–eye view of the roadmap I have in mind:
 
-+ [ ] implement the distributed database for MAC addesses
-+ [ ] parse packets comming from the TAP device
-+ [ ] send the ethernet packets as UDP packets with the memberlist Send* facility.
++ [X] parse packets comming from the TAP device
++ [X] send the ethernet packets as UDP packets with the memberlist Send* facility.
++ [X] implement the distributed database for MAC addesses
++ [ ] return node-local ARP reponses, where nodes reqspond to ARP `who-is` queries in
+      the local TAP device by using data from the distributed database
 + [ ] implement some kind of challenge-response in the initial connection between
       nodes (`memberlist` does not have anything like this, it just relies in
       encryption and both parties sharing the same key)
 + [ ] modify `memberlist` for being more NAT-friendly.
-      
++ [ ] implement a DHCP server in the distributed switch. This would require either a) some
+      consensus for not assigning the same IP to two different nodes or b) implementing
+      IP pools per node 
 
 ## Installation
 
