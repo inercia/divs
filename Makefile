@@ -25,6 +25,9 @@ clean:
 	rm -f divs*.pkg divs*.deb
 	rm -f *~ */*~
 
+format:
+	@echo "Formatting..."
+	gofmt -s -w .
 
 #################################################################
 # deps
