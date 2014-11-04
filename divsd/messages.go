@@ -2,8 +2,8 @@ package divsd
 
 import (
 	"bytes"
-	"github.com/ugorji/go/codec"
 	"code.google.com/p/gopacket/layers"
+	"github.com/ugorji/go/codec"
 )
 
 // messageType is an integer ID of a type of message that can be received
