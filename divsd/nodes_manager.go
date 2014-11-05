@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net"
 	"time"
-
 	"github.com/hashicorp/memberlist"
+	"github.com/inercia/divs/divsd/rendezvous"
 )
 
 // joined channel length
@@ -88,7 +88,10 @@ func (nm *NodesManager) Start(membersExtAddr net.UDPAddr) (err error) {
 		}
 	}()
 
-	startRendezVous(nm.config, nm.membersExtAddr.String(), nm.discoveredChan)
+	serviceId := nm.config.Global.Serial.ToHex()
+	bindIp := nm.config.Global.BindIP
+	dhtPort := nm.config.Discover.Port
+	rendezvous.Start(serviceId, bindIp, dhtPort, nm.membersExtAddr.String(), nm.discoveredChan)
 
 	return nil
 }

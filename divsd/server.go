@@ -3,6 +3,7 @@ package divsd
 import (
 	"fmt"
 	"sync"
+	"github.com/inercia/divs/divsd/nat"
 )
 
 // The DiVS server starts the nodes manager (for the p2p network) and the devices
@@ -46,7 +47,7 @@ func New(config *Config) (s *Server, err error) {
 func (s *Server) ListenAndServe() error {
 	// obtain a externally-reachable IP/port for memberlist management
 	defaultExternalAddr := fmt.Sprintf("%s:%d", s.config.Global.Host, s.config.Global.Port)
-	membersExternalAddr, err := NewExternalUDPAddr(defaultExternalAddr)
+	membersExternalAddr, err := nat.NewExternalUDPAddr(defaultExternalAddr)
 	if membersExternalAddr.Port == 0 {
 		log.Fatalf("FATAL: external port obtained is 0")
 	}

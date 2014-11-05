@@ -44,7 +44,7 @@ func NewMdnsService(discoveryAddr string, id string) (*MdnsService, error) {
 }
 
 // Announce the service in the network
-func (srv *MdnsService) AnnounceAndDiscover(external string, discoveries chan string, localIPs map[string]bool) error {
+func (srv *MdnsService) AnnounceAndDiscover(external string, discoveries chan string, localIPs *LocalIPs) error {
 	// Setup our service export
 	_, portStr, _ := net.SplitHostPort(external)
 	port, _ := strconv.Atoi(portStr)
@@ -76,8 +76,7 @@ func (srv *MdnsService) AnnounceAndDiscover(external string, discoveries chan st
 			log.Debug("Located a peer with mDNS: %s", entryAddr)
 
 			// check if we have discovered ourselves...
-			_, isLocalIp := localIPs[entryHostName]
-			if isLocalIp && entry.Port == port {
+			if localIPs.IsLocal(entryHostName) && entry.Port == port {
 				log.Debug("... skipped: it was this node (%s:%d)", entryHostName, port)
 			} else {
 				discoveries <- entryAddr

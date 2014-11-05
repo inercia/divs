@@ -57,7 +57,7 @@ func NewDhtService(discoveryAddr string, id string) (*DhtService, error) {
 }
 
 // Announce the service in the network
-func (srv *DhtService) AnnounceAndDiscover(external string, discoveries chan string, localIPs map[string]bool) error {
+func (srv *DhtService) AnnounceAndDiscover(external string, discoveries chan string, localIPs *LocalIPs) error {
 	log.Info("Starting WAN lookup with DHT")
 
 	// Connect to the DHT network
